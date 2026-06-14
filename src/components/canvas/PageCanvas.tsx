@@ -228,7 +228,7 @@ const StaticPageSheet = memo(function StaticPageSheet({ page, pdfSource, zoom, d
                   )}
                   {shape.type === 'triangle' && (
                     <polygon
-                      points={`50%,0 100%,100% 0,100%`}
+                      points={`${rectWidth / 2},0 ${rectWidth},${rectHeight} 0,${rectHeight}`}
                       fill={shape.fillColor || 'transparent'}
                       stroke={shape.borderColor}
                       strokeWidth={shape.borderWidth * zoom}
@@ -236,10 +236,10 @@ const StaticPageSheet = memo(function StaticPageSheet({ page, pdfSource, zoom, d
                   )}
                   {shape.type === 'line' && (
                     <line
-                      x1="0"
-                      y1="0"
-                      x2="100%"
-                      y2="100%"
+                      x1={shape.isFlipX ? "100%" : "0"}
+                      y1={shape.isFlipY ? "100%" : "0"}
+                      x2={shape.isFlipX ? "0" : "100%"}
+                      y2={shape.isFlipY ? "0" : "100%"}
                       stroke={shape.borderColor}
                       strokeWidth={shape.borderWidth * zoom}
                     />
@@ -260,10 +260,10 @@ const StaticPageSheet = memo(function StaticPageSheet({ page, pdfSource, zoom, d
                         </marker>
                       </defs>
                       <line
-                        x1="0"
-                        y1="0"
-                        x2="100%"
-                        y2="100%"
+                        x1={shape.isFlipX ? "100%" : "0"}
+                        y1={shape.isFlipY ? "100%" : "0"}
+                        x2={shape.isFlipX ? "0" : "100%"}
+                        y2={shape.isFlipY ? "0" : "100%"}
                         stroke={shape.borderColor}
                         strokeWidth={shape.borderWidth * zoom}
                         markerEnd={`url(#arrow-static-${shape.id})`}
@@ -318,7 +318,18 @@ export default function PageCanvas() {
   // Shape drag/resize state
   const [movingShapeId, setMovingShapeId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
   const [shapeDragOffset, setShapeDragOffset] = useState({ x: 0, y: 0 });
+
+  // Lasso select states
+  const [isLassoActive, setIsLassoActive] = useState(false);
+  const [lassoStart, setLassoStart] = useState({ x: 0, y: 0 });
+  const [lassoCurrent, setLassoCurrent] = useState({ x: 0, y: 0 });
+  const lassoInitialSelectedIdsRef = useRef<string[]>([]);
+
+  // Resizing state
+  const [resizingShapeId, setResizingShapeId] = useState<string | null>(null);
+  const [shapeResizeStart, setShapeResizeStart] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
 
   // Pan state
   const [isPanning, setIsPanning] = useState(false);
@@ -336,6 +347,7 @@ export default function PageCanvas() {
     // Clear selection if clicking directly on the canvas background
     if (target.classList.contains('canvas-backdrop') || target.tagName === 'svg') {
       setSelectedShapeId(null);
+      setSelectedShapeIds([]);
     }
 
     if (store.activeTool !== 'text') return;
@@ -366,118 +378,391 @@ export default function PageCanvas() {
     toast.success('Text block added! Double click to edit styles.');
   };
 
-  // Custom Shape drawing gestures
+  // Custom Shape drawing gestures & Lasso selections
   const handleShapePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!hasPage || store.activeTool !== 'shape') return;
+    if (!hasPage) return;
     const target = e.target as HTMLElement;
+
+    // Check click target. If clicking on text, button, handles etc, ignore backdrop events
+    if (target.closest('.drag-trigger') || target.closest('button') || target.closest('.resize-handle') || target.closest('input') || target.closest('textarea')) {
+      return;
+    }
+
     const backdrop = target.closest('.canvas-backdrop');
     if (!backdrop) return;
 
-    e.preventDefault();
     const rect = backdrop.getBoundingClientRect();
-
     const x = (e.clientX - rect.left) / store.zoom;
     const y = (e.clientY - rect.top) / store.zoom;
 
-    setIsDrawingShape(true);
-    setShapeStart({ x, y });
+    if (store.activeTool === 'shape') {
+      e.preventDefault();
+      setIsDrawingShape(true);
+      setShapeStart({ x, y });
 
-    const newShape: ShapeBlock = {
-      id: `shape-temp`,
-      type: store.activeShapeType,
-      x,
-      y,
-      width: 0,
-      height: 0,
-      fillColor: 'transparent',
-      borderColor: store.penColor,
-      borderWidth: store.penWidth
-    };
-    setTempShape(newShape);
+      const newShape: ShapeBlock = {
+        id: `shape-temp`,
+        type: store.activeShapeType,
+        x,
+        y,
+        width: 0,
+        height: 0,
+        fillColor: 'transparent',
+        borderColor: store.penColor,
+        borderWidth: store.penWidth
+      };
+      setTempShape(newShape);
+    } else if (store.activeTool === 'select') {
+      // If we clicked directly on the background (backdrop or static SVG etc) and NOT on a shape block
+      const clickedOnShape = target.closest('.shape-block-item');
+      if (!clickedOnShape) {
+        e.preventDefault();
+        setIsLassoActive(true);
+        setLassoStart({ x, y });
+        setLassoCurrent({ x, y });
+        
+        // Save initial selected ids
+        const initialSaved = (e.shiftKey || e.metaKey) ? [...selectedShapeIds] : [];
+        lassoInitialSelectedIdsRef.current = initialSaved;
+
+        // Clear selection unless shift / cmd is held
+        if (!e.shiftKey && !e.metaKey) {
+          setSelectedShapeId(null);
+          setSelectedShapeIds([]);
+        }
+      }
+    }
   };
 
   const handleShapePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDrawingShape || !tempShape) return;
+    if (isDrawingShape && tempShape) {
+      const target = e.target as HTMLElement;
+      const backdrop = target.closest('.canvas-backdrop') || canvasContainerRef.current?.querySelector('.canvas-backdrop');
+      if (!backdrop) return;
+      const rect = backdrop.getBoundingClientRect();
 
-    const target = e.target as HTMLElement;
-    const backdrop = target.closest('.canvas-backdrop') || canvasContainerRef.current?.querySelector('.canvas-backdrop');
-    if (!backdrop) return;
-    const rect = backdrop.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / store.zoom;
+      const y = (e.clientY - rect.top) / store.zoom;
 
-    const x = (e.clientX - rect.left) / store.zoom;
-    const y = (e.clientY - rect.top) / store.zoom;
+      // Math calculation for bounds
+      const width = x - shapeStart.x;
+      const height = y - shapeStart.y;
 
-    // Math calculation for bounds
-    const width = x - shapeStart.x;
-    const height = y - shapeStart.y;
+      const xPos = width >= 0 ? shapeStart.x : x;
+      const yPos = height >= 0 ? shapeStart.y : y;
 
-    const xPos = width >= 0 ? shapeStart.x : x;
-    const yPos = height >= 0 ? shapeStart.y : y;
-
-    setTempShape({
-      ...tempShape,
-      x: xPos,
-      y: yPos,
-      width: Math.abs(width),
-      height: Math.abs(height)
-    });
-  };
-
-  const handleShapePointerUp = () => {
-    if (!isDrawingShape || !tempShape) return;
-    setIsDrawingShape(false);
-
-    if (tempShape.width > 5 || tempShape.height > 5 || tempShape.type === 'line' || tempShape.type === 'arrow') {
-      const finalShape: ShapeBlock = {
+      setTempShape({
         ...tempShape,
-        id: `shape-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-      };
-      store.addShapeBlock(finalShape);
-      toast.success('Shape drawn!');
-    }
+        x: xPos,
+        y: yPos,
+        width: Math.abs(width),
+        height: Math.abs(height),
+        isFlipX: width < 0,
+        isFlipY: height < 0
+      });
+    } else if (isLassoActive) {
+      const target = e.target as HTMLElement;
+      const backdrop = target.closest('.canvas-backdrop') || canvasContainerRef.current?.querySelector('.canvas-backdrop');
+      if (!backdrop) return;
+      const rect = backdrop.getBoundingClientRect();
 
-    setTempShape(null);
+      const x = (e.clientX - rect.left) / store.zoom;
+      const y = (e.clientY - rect.top) / store.zoom;
+
+      setLassoCurrent({ x, y });
+
+      // Realtime selection intersection checking to make it highly responsive!
+      const x1 = Math.min(lassoStart.x, x);
+      const y1 = Math.min(lassoStart.y, y);
+      const x2 = Math.max(lassoStart.x, x);
+      const y2 = Math.max(lassoStart.y, y);
+
+      const width = x2 - x1;
+      const height = y2 - y1;
+
+      if (width > 2 && height > 2) {
+        const intersectingShapes = (store.currentShapeBlocks || []).filter(shape => {
+          const sx1 = shape.x;
+          const sy1 = shape.y;
+          const sx2 = shape.x + shape.width;
+          const sy2 = shape.y + shape.height;
+          return (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1);
+        });
+
+        const newSelectedIds = intersectingShapes.map(s => s.id);
+        const unionSet = new Set([...lassoInitialSelectedIdsRef.current, ...newSelectedIds]);
+        const unionList = Array.from(unionSet);
+
+        setSelectedShapeIds(unionList);
+        setSelectedShapeId(unionList.length === 1 ? unionList[0] : null);
+      }
+    }
   };
 
-  // Shape select & dragging logic
+  const handleShapePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDrawingShape && tempShape) {
+      setIsDrawingShape(false);
+
+      if (tempShape.width > 5 || tempShape.height > 5 || tempShape.type === 'line' || tempShape.type === 'arrow') {
+        const finalShape: ShapeBlock = {
+          ...tempShape,
+          id: `shape-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+        };
+        store.addShapeBlock(finalShape);
+        toast.success('Shape drawn!');
+      }
+
+      setTempShape(null);
+    } else if (isLassoActive) {
+      setIsLassoActive(false);
+
+      const count = selectedShapeIds.length;
+      if (count > 0) {
+        toast.success(`Selected ${count} shape${count > 1 ? 's' : ''}!`);
+      }
+    }
+  };
+
+  // Shape select & dragging pointer starting step
   const handleShapeDragStart = (shape: ShapeBlock, e: React.PointerEvent) => {
     if (store.activeTool !== 'select') return;
     e.preventDefault();
     e.stopPropagation();
     setMovingShapeId(shape.id);
-    setSelectedShapeId(shape.id);
+
+    // Coordinate state update based on selection array
+    let nextIds = [...selectedShapeIds];
+    if (!selectedShapeIds.includes(shape.id)) {
+      if (e.shiftKey || e.metaKey) {
+        nextIds = [...selectedShapeIds, shape.id];
+      } else {
+        nextIds = [shape.id];
+      }
+      setSelectedShapeIds(nextIds);
+      setSelectedShapeId(nextIds.length === 1 ? nextIds[0] : null);
+    }
 
     const targetElement = e.target as HTMLElement;
     const backdrop = targetElement.closest('.canvas-backdrop') || canvasContainerRef.current?.querySelector('.canvas-backdrop');
     if (backdrop) {
       const rect = backdrop.getBoundingClientRect();
-      setShapeDragOffset({
-        x: (e.clientX - rect.left) / store.zoom - shape.x,
-        y: (e.clientY - rect.top) / store.zoom - shape.y
-      });
+      const clickX = (e.clientX - rect.left) / store.zoom;
+      const clickY = (e.clientY - rect.top) / store.zoom;
+      setShapeDragOffset({ x: clickX, y: clickY });
     }
   };
 
-  const handleShapeDragMove = (e: React.PointerEvent) => {
-    if (!movingShapeId) return;
+  // 1. High-precision dragging and resizing at the window scope to avoid cursor-loss errors
+  useEffect(() => {
+    const handleMove = (e: PointerEvent) => {
+      // Delta-based dragging for robust multi-element translation
+      if (movingShapeId && shapeDragOffset) {
+        const backdrop = canvasContainerRef.current?.querySelector('.canvas-backdrop');
+        if (!backdrop) return;
+        const rect = backdrop.getBoundingClientRect();
 
-    const targetElement = e.target as HTMLElement;
-    const backdrop = targetElement.closest('.canvas-backdrop') || canvasContainerRef.current?.querySelector('.canvas-backdrop');
-    if (!backdrop) return;
-    const rect = backdrop.getBoundingClientRect();
+        const currentX = (e.clientX - rect.left) / store.zoom;
+        const currentY = (e.clientY - rect.top) / store.zoom;
 
-    const x = (e.clientX - rect.left) / store.zoom - shapeDragOffset.x;
-    const y = (e.clientY - rect.top) / store.zoom - shapeDragOffset.y;
+        const deltaX = currentX - shapeDragOffset.x;
+        const deltaY = currentY - shapeDragOffset.y;
 
-    store.updateShapeBlock(movingShapeId, {
-      x: Math.max(0, x),
-      y: Math.max(0, y)
+        if (deltaX !== 0 || deltaY !== 0) {
+          selectedShapeIds.forEach(id => {
+            const sh = store.currentShapeBlocks.find(s => s.id === id);
+            if (sh) {
+              store.updateShapeBlock(id, {
+                x: Math.max(0, sh.x + deltaX),
+                y: Math.max(0, sh.y + deltaY)
+              });
+            }
+          });
+          setShapeDragOffset({ x: currentX, y: currentY });
+        }
+      }
+
+      // Delta-based resizing for selected shape block
+      if (resizingShapeId && shapeResizeStart) {
+        const deltaX = (e.clientX - shapeResizeStart.x) / store.zoom;
+        const deltaY = (e.clientY - shapeResizeStart.y) / store.zoom;
+
+        store.updateShapeBlock(resizingShapeId, {
+          width: Math.max(10, shapeResizeStart.width + deltaX),
+          height: Math.max(10, shapeResizeStart.height + deltaY)
+        });
+      }
+    };
+
+    const handleUp = () => {
+      setMovingShapeId(null);
+      setResizingShapeId(null);
+    };
+
+    if (movingShapeId || resizingShapeId) {
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleUp);
+    }
+
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [movingShapeId, resizingShapeId, shapeDragOffset, shapeResizeStart, selectedShapeIds, store.zoom, store.currentShapeBlocks]);
+
+  // Collective bounding box of all selected shapes for layout operations
+  const groupBoundingBox = useMemo(() => {
+    if (selectedShapeIds.length <= 1) return null;
+    
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    
+    let found = false;
+    selectedShapeIds.forEach(id => {
+      const shape = store.currentShapeBlocks?.find(s => s.id === id);
+      if (shape) {
+        found = true;
+        minX = Math.min(minX, shape.x);
+        minY = Math.min(minY, shape.y);
+        maxX = Math.max(maxX, shape.x + shape.width);
+        maxY = Math.max(maxY, shape.y + shape.height);
+      }
     });
+    
+    if (!found) return null;
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+  }, [selectedShapeIds, store.currentShapeBlocks]);
+
+  // Align selected shapes relative to the group bounds
+  const handleAlign = (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
+    if (!groupBoundingBox || selectedShapeIds.length <= 1) return;
+    
+    store.pushHistory();
+    selectedShapeIds.forEach(id => {
+      const shape = store.currentShapeBlocks.find(s => s.id === id);
+      if (!shape) return;
+      
+      let newX = shape.x;
+      let newY = shape.y;
+      
+      if (alignment === 'left') {
+        newX = groupBoundingBox.x;
+      } else if (alignment === 'center') {
+        newX = groupBoundingBox.x + (groupBoundingBox.width - shape.width) / 2;
+      } else if (alignment === 'right') {
+        newX = groupBoundingBox.x + groupBoundingBox.width - shape.width;
+      } else if (alignment === 'top') {
+        newY = groupBoundingBox.y;
+      } else if (alignment === 'middle') {
+        newY = groupBoundingBox.y + (groupBoundingBox.height - shape.height) / 2;
+      } else if (alignment === 'bottom') {
+        newY = groupBoundingBox.y + groupBoundingBox.height - shape.height;
+      }
+      
+      store.updateShapeBlock(id, { x: newX, y: newY });
+    });
+    
+    toast.success(`Aligned shapes: ${alignment}`);
   };
 
-  const handleShapeDragEnd = () => {
-    setMovingShapeId(null);
+  // Evenly distribute spacing between 3 or more selected shapes
+  const handleDistribute = (direction: 'horizontal' | 'vertical') => {
+    if (!groupBoundingBox || selectedShapeIds.length <= 2) {
+      toast.error('Select 3 or more shapes to distribute spacing');
+      return;
+    }
+    
+    store.pushHistory();
+    
+    const sortedShapes = selectedShapeIds
+      .map(id => store.currentShapeBlocks.find(s => s.id === id))
+      .filter((s): s is ShapeBlock => !!s);
+      
+    if (direction === 'horizontal') {
+      sortedShapes.sort((a, b) => a.x - b.x);
+      
+      const count = sortedShapes.length;
+      const firstShape = sortedShapes[0];
+      const lastShape = sortedShapes[count - 1];
+      
+      const startX = firstShape.x;
+      const endX = lastShape.x + lastShape.width;
+      
+      const totalSpan = endX - startX;
+      const shapesWidthSum = sortedShapes.reduce((sum, s) => sum + s.width, 0);
+      
+      if (count > 2) {
+        const equalGap = (totalSpan - shapesWidthSum) / (count - 1);
+        let currentX = startX;
+        for (let i = 0; i < count; i++) {
+          const s = sortedShapes[i];
+          if (i > 0 && i < count - 1) {
+            store.updateShapeBlock(s.id, { x: currentX });
+          }
+          currentX += s.width + equalGap;
+        }
+      }
+    } else {
+      sortedShapes.sort((a, b) => a.y - b.y);
+      
+      const count = sortedShapes.length;
+      const firstShape = sortedShapes[0];
+      const lastShape = sortedShapes[count - 1];
+      
+      const startY = firstShape.y;
+      const endY = lastShape.y + lastShape.height;
+      
+      const totalSpan = endY - startY;
+      const shapesHeightSum = sortedShapes.reduce((sum, s) => sum + s.height, 0);
+      
+      if (count > 2) {
+        const equalGap = (totalSpan - shapesHeightSum) / (count - 1);
+        let currentY = startY;
+        for (let i = 0; i < count; i++) {
+          const s = sortedShapes[i];
+          if (i > 0 && i < count - 1) {
+            store.updateShapeBlock(s.id, { y: currentY });
+          }
+          currentY += s.height + equalGap;
+        }
+      }
+    }
+    
+    toast.success(`Distributed shapes ${direction === 'horizontal' ? 'horizontally' : 'vertically'}`);
   };
+
+  // 2. High-precision keyboard delete listeners for streamlined shape manipulation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' || activeEl?.hasAttribute('contenteditable');
+      if (isInputFocused) return;
+
+      if (e.key === 'Escape' && selectedShapeIds.length > 0) {
+        e.preventDefault();
+        setSelectedShapeIds([]);
+        setSelectedShapeId(null);
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && store.activeTool === 'select' && selectedShapeIds.length > 0) {
+        e.preventDefault();
+        const count = selectedShapeIds.length;
+        selectedShapeIds.forEach(id => store.deleteShapeBlock(id));
+        setSelectedShapeIds([]);
+        setSelectedShapeId(null);
+        toast.success(`Deleted ${count} shape${count > 1 ? 's' : ''}`);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedShapeIds, store.activeTool]);
 
   // Canvas pan features
   const handlePanDown = (e: React.MouseEvent) => {
@@ -635,21 +920,129 @@ export default function PageCanvas() {
                 <PDFBackground pdfSource={store.activeNotebook?.pdfSource || store.activePage?.pdfSource || null} zoom={store.zoom} pdfPage={store.activePage.pdfPage} />
               )}
 
+              {/* Lasso selection visual overlay */}
+              {isLassoActive && (
+                <div
+                  className="absolute border border-dashed border-violet-500 bg-violet-500/10 pointer-events-none z-30 rounded-xs"
+                  style={{
+                    left: Math.min(lassoStart.x, lassoCurrent.x) * store.zoom,
+                    top: Math.min(lassoStart.y, lassoCurrent.y) * store.zoom,
+                    width: Math.abs(lassoCurrent.x - lassoStart.x) * store.zoom,
+                    height: Math.abs(lassoCurrent.y - lassoStart.y) * store.zoom,
+                  }}
+                />
+              )}
+
+              {/* Group selection bounding box container with premium layout controls */}
+              {groupBoundingBox && (
+                <div
+                  className="absolute border border-dashed border-violet-600 bg-violet-600/[0.03] pointer-events-none z-20 rounded-sm"
+                  style={{
+                    left: groupBoundingBox.x * store.zoom,
+                    top: groupBoundingBox.y * store.zoom,
+                    width: groupBoundingBox.width * store.zoom,
+                    height: groupBoundingBox.height * store.zoom,
+                  }}
+                >
+                  {/* Floating Action Menu above the group selection */}
+                  <div
+                    className="absolute -top-14 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 bg-white dark:bg-[#1E2028] shadow-xl border border-gray-200 dark:border-gray-800 rounded-xl pointer-events-auto z-40 transition-all duration-150 select-none scale-90 sm:scale-100 whitespace-nowrap"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 dark:text-gray-500 px-1 border-r border-gray-100 dark:border-gray-800">
+                      Layout
+                    </div>
+                    
+                    <button
+                      onClick={() => handleAlign('left')}
+                      className="p-1 px-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs font-semibold pointer-events-auto"
+                      title="Align Lefts"
+                    >
+                      Align ⇤
+                    </button>
+                    
+                    <button
+                      onClick={() => handleAlign('center')}
+                      className="p-1 px-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs font-semibold pointer-events-auto"
+                      title="Align Horizontally"
+                    >
+                      Center ⬌
+                    </button>
+                    
+                    <button
+                      onClick={() => handleAlign('right')}
+                      className="p-1 px-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs font-semibold pointer-events-auto"
+                      title="Align Rights"
+                    >
+                      Align ⇥
+                    </button>
+                    
+                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-0.5" />
+                    
+                    <button
+                      onClick={() => handleAlign('top')}
+                      className="p-1 px-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs font-semibold pointer-events-auto"
+                      title="Align Tops"
+                    >
+                      Top ↥
+                    </button>
+                    
+                    <button
+                      onClick={() => handleAlign('bottom')}
+                      className="p-1 px-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs font-semibold pointer-events-auto"
+                      title="Align Bottoms"
+                    >
+                      Bot ↧
+                    </button>
+                    
+                    {selectedShapeIds.length >= 3 && (
+                      <>
+                        <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-0.5" />
+                        <button
+                          onClick={() => handleDistribute('horizontal')}
+                          className="p-1 px-2 hover:bg-violet-50 dark:hover:bg-violet-950/20 text-violet-600 dark:text-violet-400 rounded text-xs font-semibold pointer-events-auto"
+                          title="Distribute Spacing"
+                        >
+                          ↔ Distribute
+                        </button>
+                      </>
+                    )}
+                    
+                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-0.5" />
+                    
+                    <button
+                      onClick={() => {
+                        const count = selectedShapeIds.length;
+                        selectedShapeIds.forEach(id => store.deleteShapeBlock(id));
+                        setSelectedShapeIds([]);
+                        setSelectedShapeId(null);
+                        toast.success(`Deleted ${count} shapes`);
+                      }}
+                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors pointer-events-auto"
+                      title="Delete Selected Group"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Draggable user-drawn vector shapes element deck */}
               {store.currentShapeBlocks?.map((shape) => {
                 const rectWidth = shape.width * store.zoom;
                 const rectHeight = shape.height * store.zoom;
                 const isMoving = movingShapeId === shape.id;
-                const isSelected = selectedShapeId === shape.id;
+                const isSelected = selectedShapeIds.includes(shape.id);
 
                 return (
                   <div
                     key={shape.id}
                     onPointerDown={(e) => handleShapeDragStart(shape, e)}
-                    onPointerMove={handleShapeDragMove}
-                    onPointerUp={handleShapeDragEnd}
-                    className={`absolute rounded group border ${
-                      isSelected ? 'border-brand-primary border-dashed bg-brand-light/10 z-30' : 'border-transparent'
+                    className={`shape-block-item absolute rounded group border transition-shadow duration-150 ${
+                      isSelected 
+                        ? 'border-brand-primary border-dashed bg-brand-light/10 z-30 ring-1 ring-brand-primary/30' 
+                        : 'border-transparent'
                     } ${
                       isSelectActive ? 'hover:border-dashed hover:border-brand-primary cursor-move' : ''
                     }`}
@@ -662,15 +1055,49 @@ export default function PageCanvas() {
                     }}
                   >
                     {/* Floating shape context controls */}
-                    {(isSelectActive && (isSelected || !selectedShapeId)) && (
+                    {(isSelectActive && isSelected) && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); store.deleteShapeBlock(shape.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (selectedShapeIds.length > 1) {
+                            const count = selectedShapeIds.length;
+                            selectedShapeIds.forEach(id => store.deleteShapeBlock(id));
+                            setSelectedShapeIds([]);
+                            setSelectedShapeId(null);
+                            toast.success(`Deleted ${count} shapes`);
+                          } else {
+                            store.deleteShapeBlock(shape.id);
+                            setSelectedShapeIds(prev => prev.filter(id => id !== shape.id));
+                            setSelectedShapeId(null);
+                          }
+                        }}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className={`absolute -top-3 -right-3 p-1.5 bg-white text-text-muted hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-full shadow-sm transition-all duration-150 z-30 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                        className="absolute -top-3 -right-3 p-1.5 bg-white text-text-muted hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-full shadow-sm transition-all duration-150 z-30 opacity-100"
                         title="Delete Shape"
                       >
                         <Trash2 size={13} />
                       </button>
+                    )}
+
+                    {/* Corner resize handle for selected shape */}
+                    {isSelectActive && isSelected && selectedShapeIds.length === 1 && (
+                      <div
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setResizingShapeId(shape.id);
+                          setShapeResizeStart({
+                            width: shape.width,
+                            height: shape.height,
+                            x: e.clientX,
+                            y: e.clientY
+                          });
+                        }}
+                        className="resize-handle absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white border border-brand-primary shadow-sm rounded-full flex items-center justify-center cursor-se-resize hover:scale-110 transition-all duration-110 z-30"
+                        title="Resize Shape"
+                      >
+                        <div className="w-1.5 h-1.5 bg-brand-primary rounded-full" />
+                      </div>
                     )}
 
                     {/* SVG Canvas drawing representation */}
@@ -699,7 +1126,7 @@ export default function PageCanvas() {
                       )}
                       {shape.type === 'triangle' && (
                         <polygon
-                          points={`50%,0 100%,100% 0,100%`}
+                          points={`${rectWidth / 2},0 ${rectWidth},${rectHeight} 0,${rectHeight}`}
                           fill={shape.fillColor || 'transparent'}
                           stroke={shape.borderColor}
                           strokeWidth={shape.borderWidth * store.zoom}
@@ -707,10 +1134,10 @@ export default function PageCanvas() {
                       )}
                       {shape.type === 'line' && (
                         <line
-                          x1="0"
-                          y1="0"
-                          x2="100%"
-                          y2="100%"
+                          x1={shape.isFlipX ? "100%" : "0"}
+                          y1={shape.isFlipY ? "100%" : "0"}
+                          x2={shape.isFlipX ? "0" : "100%"}
+                          y2={shape.isFlipY ? "0" : "100%"}
                           stroke={shape.borderColor}
                           strokeWidth={shape.borderWidth * store.zoom}
                         />
@@ -731,10 +1158,10 @@ export default function PageCanvas() {
                             </marker>
                           </defs>
                           <line
-                            x1="0"
-                            y1="0"
-                            x2="100%"
-                            y2="100%"
+                            x1={shape.isFlipX ? "100%" : "0"}
+                            y1={shape.isFlipY ? "100%" : "0"}
+                            x2={shape.isFlipX ? "0" : "100%"}
+                            y2={shape.isFlipY ? "0" : "100%"}
                             stroke={shape.borderColor}
                             strokeWidth={shape.borderWidth * store.zoom}
                             markerEnd={`url(#arrow-active-${shape.id})`}
@@ -783,20 +1210,24 @@ export default function PageCanvas() {
                         strokeWidth={tempShape.borderWidth * store.zoom}
                       />
                     )}
-                    {tempShape.type === 'triangle' && (
-                      <polygon
-                        points={`50%,0 100%,100% 0,100%`}
-                        fill={tempShape.fillColor || 'transparent'}
-                        stroke={tempShape.borderColor}
-                        strokeWidth={tempShape.borderWidth * store.zoom}
-                      />
-                    )}
+                    {tempShape.type === 'triangle' && (() => {
+                      const tW = Math.max(tempShape.width, 1) * store.zoom;
+                      const tH = Math.max(tempShape.height, 1) * store.zoom;
+                      return (
+                        <polygon
+                          points={`${tW / 2},0 ${tW},${tH} 0,${tH}`}
+                          fill={tempShape.fillColor || 'transparent'}
+                          stroke={tempShape.borderColor}
+                          strokeWidth={tempShape.borderWidth * store.zoom}
+                        />
+                      );
+                    })()}
                     {tempShape.type === 'line' && (
                       <line
-                        x1="0"
-                        y1="0"
-                        x2="100%"
-                        y2="100%"
+                        x1={tempShape.isFlipX ? "100%" : "0"}
+                        y1={tempShape.isFlipY ? "100%" : "0"}
+                        x2={tempShape.isFlipX ? "0" : "100%"}
+                        y2={tempShape.isFlipY ? "0" : "100%"}
                         stroke={tempShape.borderColor}
                         strokeWidth={tempShape.borderWidth * store.zoom}
                       />
@@ -817,10 +1248,10 @@ export default function PageCanvas() {
                           </marker>
                         </defs>
                         <line
-                          x1="0"
-                          y1="0"
-                          x2="100%"
-                          y2="100%"
+                          x1={tempShape.isFlipX ? "100%" : "0"}
+                          y1={tempShape.isFlipY ? "100%" : "0"}
+                          x2={tempShape.isFlipX ? "0" : "100%"}
+                          y2={tempShape.isFlipY ? "0" : "100%"}
                           stroke={tempShape.borderColor}
                           strokeWidth={tempShape.borderWidth * store.zoom}
                           markerEnd="url(#arrow-preview-marker)"

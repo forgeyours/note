@@ -146,14 +146,18 @@ export async function createPageCompositeCanvas(
       ctx.stroke();
     } else if (shape.type === 'line') {
       ctx.beginPath();
-      ctx.moveTo(shape.x, shape.y);
-      ctx.lineTo(shape.x + shape.width, shape.y + shape.height);
+      const x1 = shape.isFlipX ? shape.x + shape.width : shape.x;
+      const y1 = shape.isFlipY ? shape.y + shape.height : shape.y;
+      const x2 = shape.isFlipX ? shape.x : shape.x + shape.width;
+      const y2 = shape.isFlipY ? shape.y : shape.y + shape.height;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
       ctx.stroke();
     } else if (shape.type === 'arrow') {
-      const fromx = shape.x;
-      const fromy = shape.y;
-      const tox = shape.x + shape.width;
-      const toy = shape.y + shape.height;
+      const fromx = shape.isFlipX ? shape.x + shape.width : shape.x;
+      const fromy = shape.isFlipY ? shape.y + shape.height : shape.y;
+      const tox = shape.isFlipX ? shape.x : shape.x + shape.width;
+      const toy = shape.isFlipY ? shape.y : shape.y + shape.height;
       
       // draw line
       ctx.beginPath();
@@ -397,13 +401,19 @@ export async function exportPageAsPDF(page: Page, strokes: Stroke[], options: { 
           const y3 = relativeY + shape.height;
           pdf.triangle(x1, y1, x2, y2, x3, y3, style as any);
         } else if (shape.type === 'line') {
-          pdf.line(shape.x, relativeY, shape.x + shape.width, relativeY + shape.height);
+          const x1 = shape.isFlipX ? shape.x + shape.width : shape.x;
+          const y1 = shape.isFlipY ? relativeY + shape.height : relativeY;
+          const x2 = shape.isFlipX ? shape.x : shape.x + shape.width;
+          const y2 = shape.isFlipY ? relativeY : relativeY + shape.height;
+          pdf.line(x1, y1, x2, y2);
         } else if (shape.type === 'arrow') {
-          const tox = shape.x + shape.width;
-          const toy = relativeY + shape.height;
-          pdf.line(shape.x, relativeY, tox, toy);
+          const fromx = shape.isFlipX ? shape.x + shape.width : shape.x;
+          const fromy = shape.isFlipY ? relativeY + shape.height : relativeY;
+          const tox = shape.isFlipX ? shape.x : shape.x + shape.width;
+          const toy = shape.isFlipY ? relativeY : relativeY + shape.height;
+          pdf.line(fromx, fromy, tox, toy);
           
-          const angle = Math.atan2(shape.height, shape.width);
+          const angle = Math.atan2(toy - fromy, tox - fromx);
           const headlen = 10;
           const xA1 = tox - headlen * Math.cos(angle - Math.PI / 6);
           const yA1 = toy - headlen * Math.sin(angle - Math.PI / 6);

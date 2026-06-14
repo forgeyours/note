@@ -69,6 +69,8 @@ const HandwritingLayer = memo(function HandwritingLayer({
 }: HandwritingLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null); // Foreground (Active) Canvas
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null); // Background (Completed Strokes) Canvas
+  const highlighterBackgroundCanvasRef = useRef<HTMLCanvasElement>(null); // Low-level background for completed highlighters
+  const highlighterForegroundCanvasRef = useRef<HTMLCanvasElement>(null); // Low-level foreground for drawing highlighters
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Track synchronous drawing state to avoid React's asynchronous render delays
@@ -104,56 +106,84 @@ const HandwritingLayer = memo(function HandwritingLayer({
   // Redraw Background (completed strokes)
   const redrawBackground = () => {
     const bgCanvas = backgroundCanvasRef.current;
-    if (!bgCanvas) return;
-    const ctx = bgCanvas.getContext('2d');
-    if (!ctx) return;
+    const hlCanvas = highlighterBackgroundCanvasRef.current;
+    if (!bgCanvas || !hlCanvas) return;
+
+    const bgCtx = bgCanvas.getContext('2d');
+    const hlCtx = hlCanvas.getContext('2d');
+    if (!bgCtx || !hlCtx) return;
 
     const dpr = getDpr();
-    // Reset transform & clear
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
+    const currentStrokesList = workingStrokesRef.current || strokes;
 
-    // Apply scaling
-    ctx.scale(zoom, zoom);
+    // 1. Clear and Draw Highlighter Background Canvas
+    hlCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hlCtx.clearRect(0, 0, hlCanvas.width / dpr, hlCanvas.height / dpr);
+    hlCtx.scale(zoom, zoom);
 
-    // Draw completed strokes
-    drawStrokes(ctx, workingStrokesRef.current || strokes, { scale: 1, darkMode });
+    const highlighterStrokes = currentStrokesList.filter(s => s.tool === 'highlighter');
+    drawStrokes(hlCtx, highlighterStrokes, { scale: 1, darkMode });
+
+    // 2. Clear and Draw Pen Background Canvas
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bgCtx.clearRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
+    bgCtx.scale(zoom, zoom);
+
+    const penStrokes = currentStrokesList.filter(s => s.tool !== 'highlighter');
+    drawStrokes(bgCtx, penStrokes, { scale: 1, darkMode });
   };
 
   // Redraw Foreground (currently active stroke)
   const redrawForeground = () => {
     const fgCanvas = canvasRef.current;
-    if (!fgCanvas) return;
+    const hlFgCanvas = highlighterForegroundCanvasRef.current;
+    if (!fgCanvas || !hlFgCanvas) return;
     const ctx = fgCanvas.getContext('2d');
-    if (!ctx) return;
+    const hlCtx = hlFgCanvas.getContext('2d');
+    if (!ctx || !hlCtx) return;
 
     const dpr = getDpr();
-    // Reset transform & clear
+    // Reset transform & clear both live canvases
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, fgCanvas.width / dpr, fgCanvas.height / dpr);
 
+    hlCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hlCtx.clearRect(0, 0, hlFgCanvas.width / dpr, hlFgCanvas.height / dpr);
+
     // If active drawing is occurring and not erasing, render only the current stroke being written
     if (activeTool !== 'eraser' && isDrawingRef.current && currentPointsRef.current.length > 0) {
-      ctx.save();
-      // Apply scaling
-      ctx.scale(zoom, zoom);
+      if (activeTool === 'highlighter') {
+        hlCtx.save();
+        hlCtx.scale(zoom, zoom);
 
-      const activeToolType = activeTool === 'highlighter' ? 'highlighter' : 'pen';
-      const activeColor = activeTool === 'highlighter' ? highlightColor : penColor;
-      const activeWidth = activeTool === 'highlighter' ? highlightWidth : penWidth;
+        const tempStroke: Stroke = {
+          id: 'temp-drawing',
+          tool: 'highlighter',
+          color: highlightColor,
+          width: highlightWidth,
+          opacity: 0.45,
+          points: currentPointsRef.current
+        };
+        
+        drawSingleStroke(hlCtx, tempStroke, 1, darkMode);
+        hlCtx.restore();
+      } else {
+        ctx.save();
+        ctx.scale(zoom, zoom);
 
-      const tempStroke: Stroke = {
-        id: 'temp-drawing',
-        tool: activeToolType,
-        color: activeColor,
-        width: activeWidth,
-        opacity: activeTool === 'highlighter' ? 0.45 : 1,
-        points: currentPointsRef.current,
-        brushType: activeTool === 'highlighter' ? undefined : brushType
-      };
-      
-      drawSingleStroke(ctx, tempStroke, 1, darkMode);
-      ctx.restore();
+        const tempStroke: Stroke = {
+          id: 'temp-drawing',
+          tool: 'pen',
+          color: penColor,
+          width: penWidth,
+          opacity: 1,
+          points: currentPointsRef.current,
+          brushType: brushType
+        };
+        
+        drawSingleStroke(ctx, tempStroke, 1, darkMode);
+        ctx.restore();
+      }
     }
   };
 
@@ -161,8 +191,10 @@ const HandwritingLayer = memo(function HandwritingLayer({
   useEffect(() => {
     const resizeCanvas = () => {
       const bgCanvas = backgroundCanvasRef.current;
+      const hlCanvas = highlighterBackgroundCanvasRef.current;
+      const hlFgCanvas = highlighterForegroundCanvasRef.current;
       const fgCanvas = canvasRef.current;
-      if (!bgCanvas || !fgCanvas) return;
+      if (!bgCanvas || !hlCanvas || !hlFgCanvas || !fgCanvas) return;
 
       const visualWidth = 800 * zoom; 
       const visualHeight = (1130 * pagesCount) * zoom;
@@ -171,6 +203,12 @@ const HandwritingLayer = memo(function HandwritingLayer({
       // Set high-resolution backing metrics
       bgCanvas.width = visualWidth * dpr;
       bgCanvas.height = visualHeight * dpr;
+
+      hlCanvas.width = visualWidth * dpr;
+      hlCanvas.height = visualHeight * dpr;
+
+      hlFgCanvas.width = visualWidth * dpr;
+      hlFgCanvas.height = visualHeight * dpr;
 
       fgCanvas.width = visualWidth * dpr;
       fgCanvas.height = visualHeight * dpr;
@@ -508,9 +546,9 @@ const HandwritingLayer = memo(function HandwritingLayer({
       };
 
       // Instantly pop the completed stroke to the background to avoid any frame flicker
-      const bgCanvas = backgroundCanvasRef.current;
-      if (bgCanvas) {
-        const bgCtx = bgCanvas.getContext('2d');
+      const targetCanvas = finalizedStroke.tool === 'highlighter' ? highlighterBackgroundCanvasRef.current : backgroundCanvasRef.current;
+      if (targetCanvas) {
+        const bgCtx = targetCanvas.getContext('2d');
         if (bgCtx) {
           const dpr = getDpr();
           bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -669,7 +707,27 @@ const HandwritingLayer = memo(function HandwritingLayer({
         cursor: activeTool === 'eraser' ? 'none' : 'crosshair'
       }}
     >
-      {/* Background layer for fully rendered completed strokes */}
+      {/* Low-level Background layer for completed highlighter strokes */}
+      <canvas
+        ref={highlighterBackgroundCanvasRef}
+        className="absolute inset-0 select-none block pointer-events-none"
+        style={{
+          width: '100%',
+          height: '100%',
+          zIndex: 4,
+        }}
+      />
+      {/* Low-level Foreground layer for drawing-in-progress highlighter strokes */}
+      <canvas
+        ref={highlighterForegroundCanvasRef}
+        className="absolute inset-0 select-none block pointer-events-none"
+        style={{
+          width: '100%',
+          height: '100%',
+          zIndex: 5,
+        }}
+      />
+      {/* Background layer for fully rendered completed standard pen strokes */}
       <canvas
         ref={backgroundCanvasRef}
         className="absolute inset-0 select-none block pointer-events-none"

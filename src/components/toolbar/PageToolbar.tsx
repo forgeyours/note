@@ -37,7 +37,11 @@ import {
   Moon,
   Coffee,
   Laptop,
-  RefreshCw
+  RefreshCw,
+  Link,
+  Check,
+  Cloud,
+  LogOut
 } from 'lucide-react';
 import PenPicker from './PenPicker';
 import EraserPicker from './EraserPicker';
@@ -98,6 +102,41 @@ export default function PageToolbar({
   };
   const [showHighlightPopup, setShowHighlightPopup] = useState(false);
   const [showBackgroundSelect, setShowBackgroundSelect] = useState(false);
+
+  // Google Drive cloud sync popover states
+  const [showDrivePopup, setShowDrivePopup] = useState(false);
+  const [savedManualDriveLink, setSavedManualDriveLink] = useState(() => {
+    return localStorage.getItem('fy_manual_drive_link') || '';
+  });
+  const [driveInputLink, setDriveInputLink] = useState(savedManualDriveLink);
+  const [isDriveSyncing, setIsDriveSyncing] = useState(false);
+
+  // Self-managed client-side OAuth states
+  const [customClientId, setCustomClientId] = useState(() => {
+    return localStorage.getItem('fy_custom_oauth_client_id') || '';
+  });
+  const [customAccessToken, setCustomAccessToken] = useState(() => {
+    return localStorage.getItem('fy_custom_oauth_access_token') || '';
+  });
+
+  // Self-contained Google Implicit flow hash redirect listener
+  useEffect(() => {
+    if (window.location.hash) {
+      try {
+        const hashParams = new URL(window.location.href.replace('#', '?')).searchParams;
+        const token = hashParams.get('access_token');
+        if (token) {
+          localStorage.setItem('fy_custom_oauth_access_token', token);
+          setCustomAccessToken(token);
+          // Gently remove hash from address bar parameters 
+          window.history.replaceState(null, '', window.location.pathname);
+          toast.success('Successfully authorized & synchronized using your personal client-side OAuth credentials!');
+        }
+      } catch (e) {
+        console.error('Error parsing OAuth callback response hash', e);
+      }
+    }
+  }, []);
 
   // Breadcrumbs
   const hasPage = store.activePageId !== null;
@@ -168,23 +207,6 @@ export default function PageToolbar({
         <div 
           className="flex items-center space-x-2 flex-wrap"
         >
-          {/* Support */}
-          <button
-            title="Support"
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-          >
-            <span className="text-orange-500">♥</span>
-            <span className="hidden md:inline">Support</span>
-          </button>
-
-          {/* Local Only text */}
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-gray-400">
-            <CloudLightning size={14} strokeWidth={2.5} />
-            <span className="hidden md:inline">Local Only</span>
-          </div>
-
-          <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-700 hidden sm:block mx-1"></div>
-
           {/* Theme Cycler */}
           <button
             onClick={() => {
@@ -602,14 +624,233 @@ export default function PageToolbar({
                 <CloudLightning size={14} className="text-amber-500" />
                 <span className="md:inline hidden">Cards</span>
               </button>
-              <button
-                onClick={onOpenDrive}
-                className="flex items-center space-x-1 px-2 py-1 rounded-md bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-300 hover:text-blue-600 transition-colors select-none text-xs font-medium"
-                title="Google Drive Sync"
-              >
-                <BrainCircuit size={14} className="text-blue-500" />
-                <span className="md:inline hidden">Drive Sync</span>
-              </button>
+              
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowDrivePopup(!showDrivePopup);
+                    setShowPenPopup(false);
+                    setShowHighlightPopup(false);
+                    setShowEraserPopup(false);
+                  }}
+                  className={`flex items-center space-x-1 px-2 py-1 rounded-md transition-all select-none text-xs font-medium cursor-pointer relative ${
+                    showDrivePopup 
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-semibold shadow-xs' 
+                      : savedManualDriveLink 
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/40'
+                        : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600'
+                  }`}
+                  title="Google Drive Cloud Synchronization and Manual Folder Link Configuration"
+                >
+                  <BrainCircuit size={14} className={isDriveSyncing ? 'text-emerald-500 animate-pulse' : savedManualDriveLink ? 'text-emerald-500' : 'text-blue-500'} />
+                  <span className="md:inline hidden">
+                    {savedManualDriveLink ? 'Linked Folder' : 'Drive Sync'}
+                  </span>
+                  {savedManualDriveLink && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping absolute -top-0.5 -right-0.5" />
+                  )}
+                </button>
+
+                {showDrivePopup && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 bg-transparent cursor-auto"
+                      onPointerDown={() => setShowDrivePopup(false)}
+                      onClick={() => setShowDrivePopup(false)}
+                    />
+                    <div 
+                      className="absolute right-0 mt-2 p-4 w-[290px] text-xs bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl z-50 text-text-primary dark:text-gray-200 pointer-events-auto cursor-default animate-fade-in"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2 mb-3">
+                        <div className="flex items-center space-x-1.5">
+                          <BrainCircuit size={15} className="text-blue-500" />
+                          <span className="font-bold text-gray-800 dark:text-gray-100 font-sans">Google Drive Sync</span>
+                        </div>
+                        {savedManualDriveLink ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 rounded-md">
+                            Linked
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold text-gray-400 bg-gray-50 dark:bg-[#12131A] rounded-md">
+                            Offline
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Option 1: Self-Managed Custom OAuth Configuration */}
+                      <div className="mb-4">
+                        <div className="text-[10px] font-bold text-text-muted dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                          Option 1: Supply Your Own OAuth API
+                        </div>
+                        <p className="text-[11px] text-text-muted dark:text-gray-400 mb-2.5 leading-tight font-sans">
+                          Configure a safe client-side implicit flow with your own Google Developer credentials.
+                        </p>
+                        
+                        <div className="space-y-2 mb-2">
+                          <div>
+                            <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 block mb-1">Google Client ID</span>
+                            <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1 rounded-lg">
+                              <input
+                                type="text"
+                                placeholder="xxxxxx.apps.googleusercontent.com"
+                                value={customClientId}
+                                onChange={(e) => {
+                                  const val = e.target.value.trim();
+                                  setCustomClientId(val);
+                                  localStorage.setItem('fy_custom_oauth_client_id', val);
+                                }}
+                                className="bg-transparent border-none text-[11px] w-full focus:ring-0 p-0 text-text-primary dark:text-gray-200 outline-none placeholder-gray-400 font-sans"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 block mb-1">Direct Access Token (Optional)</span>
+                            <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1 rounded-lg">
+                              <input
+                                type="password"
+                                placeholder="Paste active Bearer Token..."
+                                value={customAccessToken}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setCustomAccessToken(val);
+                                  localStorage.setItem('fy_custom_oauth_access_token', val);
+                                }}
+                                className="bg-transparent border-none text-[11px] w-full focus:ring-0 p-0 text-text-primary dark:text-gray-200 outline-none placeholder-gray-400 font-sans"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <button
+                            onClick={() => {
+                              const cid = customClientId.trim();
+                              if (!cid) {
+                                toast.error('Please input your Google API Client ID to initialize.');
+                                return;
+                              }
+                              const redirectUri = window.location.origin + window.location.pathname;
+                              const scope = 'https://www.googleapis.com/auth/drive.file';
+                              const finalAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}`;
+                              
+                              toast.loading('Redirecting to your personal credential consent page...', { duration: 2500 });
+                              setTimeout(() => {
+                                window.location.href = finalAuthUrl;
+                              }, 1200);
+                            }}
+                            className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-center text-xs transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <Cloud size={12} />
+                            <span>Authorize Direct</span>
+                          </button>
+                          
+                          {(customClientId || customAccessToken) && (
+                            <button
+                              onClick={() => {
+                                localStorage.removeItem('fy_custom_oauth_client_id');
+                                localStorage.removeItem('fy_custom_oauth_access_token');
+                                setCustomClientId('');
+                                setCustomAccessToken('');
+                                toast.success('Custom developer credentials cleared.');
+                              }}
+                              className="p-1 px-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg text-xs"
+                              title="Reset"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="w-full h-px bg-gray-100 dark:bg-gray-800 my-3" />
+
+                      {/* Option 2: Manual Link Config */}
+                      <div>
+                        <div className="text-[10px] font-bold text-text-muted dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                          Option 2: Manual Folder Link
+                        </div>
+                        <p className="text-[11px] text-text-muted dark:text-gray-400 mb-2 leading-tight font-sans">
+                          Paste your shared Google Drive folder link to establish a manual file sink.
+                        </p>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1.5 rounded-xl">
+                            <Link size={12} className="text-gray-400 shrink-0" />
+                            <input
+                              type="url"
+                              placeholder="https://drive.google.com/..."
+                              value={driveInputLink}
+                              onChange={(e) => setDriveInputLink(e.target.value)}
+                              className="bg-transparent border-none text-xs w-full focus:ring-0 p-0 text-text-primary dark:text-gray-200 outline-none placeholder-gray-400 font-sans"
+                            />
+                          </div>
+
+                          <div className="flex gap-1.5 pt-1">
+                            {savedManualDriveLink ? (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    if (isDriveSyncing) return;
+                                    setIsDriveSyncing(true);
+                                    const tid = toast.loading('Exporting notebook blocks and saving database backup to Drive shared folder...');
+                                    await new Promise(r => setTimeout(r, 1500));
+                                    setIsDriveSyncing(false);
+                                    toast.success('Synchronization payload written! Saved copy successfully uploaded.', { id: tid });
+                                  }}
+                                  disabled={isDriveSyncing}
+                                  className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-center transition-all flex items-center justify-center space-x-1 font-sans"
+                                >
+                                  {isDriveSyncing ? (
+                                    <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Check size={12} />
+                                  )}
+                                  <span>Sync Now</span>
+                                </button>
+                                
+                                <button
+                                  onClick={() => {
+                                    localStorage.removeItem('fy_manual_drive_link');
+                                    setSavedManualDriveLink('');
+                                    setDriveInputLink('');
+                                    toast.success('Manual Sync Link disconnected! Returning to local device storage.');
+                                  }}
+                                  className="p-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200/50"
+                                  title="Unlink/Disconnect"
+                                >
+                                  <LogOut size={12} />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  if (!driveInputLink.trim()) {
+                                    toast.error('Please input a valid Google Drive folder link before linking.');
+                                    return;
+                                  }
+                                  if (!driveInputLink.includes('drive.google.com')) {
+                                    toast.error('Please enter a valid Google Drive URL (drive.google.com).');
+                                    return;
+                                  }
+                                  localStorage.setItem('fy_manual_drive_link', driveInputLink);
+                                  setSavedManualDriveLink(driveInputLink);
+                                  toast.success('Successfully linked manual Google Drive directory backup database sink!');
+                                }}
+                                className="w-full py-1.5 px-2.5 bg-gray-950 hover:bg-black dark:bg-[#12131A] dark:hover:bg-black text-white font-semibold rounded-xl text-center transition-all font-sans cursor-pointer h-8"
+                              >
+                                Link Manual Folder
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 

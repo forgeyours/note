@@ -126,4 +126,6 @@ export interface ShapeBlock {
   fillColor: string;
   borderColor: string;
   borderWidth: number;
+  isFlipX?: boolean;
+  isFlipY?: boolean;
 }

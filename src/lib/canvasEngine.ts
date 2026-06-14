@@ -15,7 +15,15 @@ export function drawStrokes(
 ) {
   const { scale, darkMode } = options;
   
-  strokes.forEach((stroke) => {
+  // Highlight strokes should always sit under other pens/shapes
+  const highlighters = strokes.filter((s) => s.tool === 'highlighter');
+  const normalStrokes = strokes.filter((s) => s.tool !== 'highlighter');
+
+  highlighters.forEach((stroke) => {
+    drawSingleStroke(ctx, stroke, scale, darkMode);
+  });
+  
+  normalStrokes.forEach((stroke) => {
     drawSingleStroke(ctx, stroke, scale, darkMode);
   });
 }
