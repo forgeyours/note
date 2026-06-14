@@ -29,17 +29,25 @@ export async function createPageCompositeCanvas(
 
   const pagesCount = Math.max(1, Math.ceil((maxY + 400) / PAGE_HEIGHT));
 
-  // High resolution target for exporting (A4 equivalent 800x1130 ratios)
-  const width = 800;
-  const height = PAGE_HEIGHT * pagesCount;
+  // High resolution target for exporting (A4 equivalent 800x1130 ratios upscaled by 3x for ultra-crisp Retina text and strokes)
+  const SCALE = 3;
+  const width = 800 * SCALE;
+  const height = PAGE_HEIGHT * pagesCount * SCALE;
   canvas.width = width;
   canvas.height = height;
 
   if (!ctx) return canvas;
 
-  // 1. Draw solid background
+  // 1. Draw solid background physically
   ctx.fillStyle = options.darkMode ? '#1E2028' : '#FFFFFF';
   ctx.fillRect(0, 0, width, height);
+
+  // 2. Scale the context for downstream drawings to allow vector layouts and fonts to rasterize at 3x density
+  ctx.save();
+  ctx.scale(SCALE, SCALE);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // Draw dividers and backgrounds per sheet
   for (let i = 0; i < pagesCount; i++) {
@@ -52,14 +60,14 @@ export async function createPageCompositeCanvas(
       for (let y = sheetY + 50; y < sheetY + PAGE_HEIGHT; y += 28) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(800, y);
         ctx.stroke();
       }
     } else if (page.background === 'grid') {
       ctx.strokeStyle = options.darkMode ? '#2E323E' : '#F1F5F9';
       ctx.lineWidth = 1;
       // draw verticals
-      for (let x = 0; x < width; x += 24) {
+      for (let x = 0; x < 800; x += 24) {
         ctx.beginPath();
         ctx.moveTo(x, sheetY);
         ctx.lineTo(x, sheetY + PAGE_HEIGHT);
@@ -69,12 +77,12 @@ export async function createPageCompositeCanvas(
       for (let y = sheetY; y < sheetY + PAGE_HEIGHT; y += 24) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(800, y);
         ctx.stroke();
       }
     } else if (page.background === 'dotted') {
       ctx.fillStyle = options.darkMode ? '#475569' : '#CBD5E1';
-      for (let x = 12; x < width; x += 24) {
+      for (let x = 12; x < 800; x += 24) {
         for (let y = sheetY + 12; y < sheetY + PAGE_HEIGHT; y += 24) {
           ctx.beginPath();
           ctx.arc(x, y, 1.5, 0, Math.PI * 2);
@@ -92,7 +100,7 @@ export async function createPageCompositeCanvas(
           img.src = compositeSource;
           await new Promise((resolve) => {
             img.onload = () => {
-              ctx.drawImage(img, 0, sheetY, width, PAGE_HEIGHT);
+              ctx.drawImage(img, 0, sheetY, 800, PAGE_HEIGHT);
               resolve(true);
             };
             img.onerror = () => resolve(false);
@@ -107,7 +115,7 @@ export async function createPageCompositeCanvas(
     ctx.fillStyle = options.darkMode ? '#475569' : '#94A3B8';
     ctx.font = '12px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`- ${i + 1} -`, width / 2, sheetY + PAGE_HEIGHT - 20);
+    ctx.fillText(`- ${i + 1} -`, 400, sheetY + PAGE_HEIGHT - 20);
   }
 
   // 3. Draw Shapes
@@ -208,6 +216,8 @@ export async function createPageCompositeCanvas(
     ctx.restore();
   });
 
+  ctx.restore();
+
   return canvas;
 }
 
@@ -238,7 +248,9 @@ export async function exportPageAsPNG(page: Page, strokes: Stroke[], options: { 
  */
 export async function exportPageAsPDF(page: Page, strokes: Stroke[], options: { darkMode: boolean }) {
   const composite = await createPageCompositeCanvas(page, strokes, options);
-  const PAGE_HEIGHT = 1130;
+  const SCALE = 3;
+  const BASE_PAGE_HEIGHT = 1130;
+  const PAGE_HEIGHT = BASE_PAGE_HEIGHT * SCALE;
   const pagesCount = Math.max(1, Math.ceil(composite.height / PAGE_HEIGHT));
 
   const pdf = new jsPDF({
@@ -249,18 +261,21 @@ export async function exportPageAsPDF(page: Page, strokes: Stroke[], options: { 
 
   for (let i = 0; i < pagesCount; i++) {
     const pageCanvas = document.createElement('canvas');
-    pageCanvas.width = 800;
+    pageCanvas.width = 800 * SCALE;
     pageCanvas.height = PAGE_HEIGHT;
     const pageCtx = pageCanvas.getContext('2d');
     
     if (pageCtx) {
-      pageCtx.drawImage(composite, 0, i * PAGE_HEIGHT, 800, PAGE_HEIGHT, 0, 0, 800, PAGE_HEIGHT);
+      pageCtx.imageSmoothingEnabled = true;
+      pageCtx.imageSmoothingQuality = 'high';
+      pageCtx.drawImage(composite, 0, i * PAGE_HEIGHT, 800 * SCALE, PAGE_HEIGHT, 0, 0, 800 * SCALE, PAGE_HEIGHT);
+      
       const dataUrl = pageCanvas.toDataURL('image/png', 1.0);
       
       if (i > 0) {
         pdf.addPage([800, 1130], 'portrait');
       }
-      pdf.addImage(dataUrl, 'PNG', 0, 0, 800, PAGE_HEIGHT);
+      pdf.addImage(dataUrl, 'PNG', 0, 0, 800, 1130);
     }
   }
 

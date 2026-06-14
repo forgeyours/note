@@ -83,6 +83,21 @@ const HandwritingLayer = memo(function HandwritingLayer({
   const lastEraserPosRef = useRef<{ x: number; y: number } | null>(null);
   const workingStrokesRef = useRef<Stroke[] | null>(null);
 
+  // Sophisticated palm rejection states
+  const lastStylusActiveTimeRef = useRef<number>(0);
+  const activePointerTypeRef = useRef<string | null>(null);
+
+  const abortActiveStroke = () => {
+    isDrawingRef.current = false;
+    globalCanvasState.isDrawing = false;
+    activeDevicePointerId.current = null;
+    activePointerTypeRef.current = null;
+    currentPointsRef.current = [];
+    lastPointRef.current = null;
+    workingStrokesRef.current = null;
+    redrawForeground();
+  };
+
   const getDpr = () => window.devicePixelRatio || 1;
 
   // Redraw Background (completed strokes)
@@ -209,14 +224,46 @@ const HandwritingLayer = memo(function HandwritingLayer({
     const isDrawTool = activeTool === 'pen' || activeTool === 'highlighter' || activeTool === 'eraser';
     if (!isDrawTool) return;
 
+    const palmRejection = localStorage.getItem('palm_rejection_level') || 'smart';
+
+    // 1. Stylus-only enforcement
+    if (palmRejection === 'stylus' && e.pointerType === 'touch') {
+      e.preventDefault();
+      return;
+    }
+
+    // 2. Smart Palm Rejection
+    if (palmRejection === 'smart' && e.pointerType === 'touch') {
+      // Discard multi-touch / non-primary touch events
+      if (!e.isPrimary) {
+        e.preventDefault();
+        return;
+      }
+      // Reject large contact contact patches representing hand/palm rest
+      if (e.width > 24 || e.height > 24) {
+        e.preventDefault();
+        return;
+      }
+      // If stylus has been hover-active or touching recently, reject touch drawing completely
+      if (Date.now() - lastStylusActiveTimeRef.current < 1500) {
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Track last stylus timestamp
+    if (e.pointerType === 'pen') {
+      lastStylusActiveTimeRef.current = Date.now();
+    }
+
     if (isDrawingRef.current) {
       if (activeDevicePointerId.current !== null && activeDevicePointerId.current !== e.pointerId) {
         if (e.pointerType === 'pen') {
            // Pen touching down overrides active touch (palm rejection missed initial touch down)
-           handlePointerCancel({ pointerId: activeDevicePointerId.current, preventDefault: () => {} } as any);
+           abortActiveStroke();
         } else {
            // Ignore second touch
-           e.preventDefault(); // Stop system gestures from this rejected touch
+           e.preventDefault();
            return;
         }
       } else {
@@ -235,6 +282,7 @@ const HandwritingLayer = memo(function HandwritingLayer({
     isDrawingRef.current = true;
     globalCanvasState.isDrawing = true;
     activeDevicePointerId.current = e.pointerId;
+    activePointerTypeRef.current = e.pointerType;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -282,6 +330,13 @@ const HandwritingLayer = memo(function HandwritingLayer({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Dynamic stylus-hover detection (Hover-based Touch Suppression)
+    if (e.pointerType === 'pen') {
+      lastStylusActiveTimeRef.current = Date.now();
+    }
+
+    const palmRejection = localStorage.getItem('palm_rejection_level') || 'smart';
+
     // Track cursor location dynamically for the custom physical eraser visual
     if (activeTool === 'eraser') {
       const canvas = canvasRef.current;
@@ -302,6 +357,14 @@ const HandwritingLayer = memo(function HandwritingLayer({
         try { e.preventDefault(); } catch (err) {}
       }
       return;
+    }
+
+    // Smart continuous palm-expansion check
+    if (activePointerTypeRef.current === 'touch' && palmRejection === 'smart') {
+      if (e.width > 24 || e.height > 24 || Date.now() - lastStylusActiveTimeRef.current < 1500) {
+        abortActiveStroke();
+        return;
+      }
     }
 
     e.preventDefault();
@@ -393,6 +456,7 @@ const HandwritingLayer = memo(function HandwritingLayer({
 
     isDrawingRef.current = false;
     globalCanvasState.isDrawing = false;
+    activePointerTypeRef.current = null;
     
     // De-register the active pointer id when the stroke is done
     if (activeDevicePointerId.current === e.pointerId) {

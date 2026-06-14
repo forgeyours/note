@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/appStore';
+import { performPwaUpdateCheck } from '../../lib/updateChecker';
 import toast from 'react-hot-toast';
 import { 
   PenTool, 
@@ -35,7 +36,8 @@ import {
   Sun,
   Moon,
   Coffee,
-  Laptop
+  Laptop,
+  RefreshCw
 } from 'lucide-react';
 import PenPicker from './PenPicker';
 import EraserPicker from './EraserPicker';
@@ -65,6 +67,35 @@ export default function PageToolbar({
 
   const [showPenPopup, setShowPenPopup] = useState(false);
   const [showEraserPopup, setShowEraserPopup] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+
+  useEffect(() => {
+    const isModeStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                            (window.navigator as any).standalone === true;
+    setIsStandalone(isModeStandalone);
+  }, []);
+
+  const handleCheckUpdatesNavbar = async () => {
+    if (checkingUpdates) return;
+    setCheckingUpdates(true);
+    const toastId = toast.loading('Checking for updates...');
+    try {
+      const result = await performPwaUpdateCheck();
+      if (result.updated) {
+        toast.success('Update complete! Reloading application...', { id: toastId });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        toast.success(result.message, { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Could not complete update check. Try again!', { id: toastId });
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
   const [showHighlightPopup, setShowHighlightPopup] = useState(false);
   const [showBackgroundSelect, setShowBackgroundSelect] = useState(false);
 
@@ -185,16 +216,29 @@ export default function PageToolbar({
             <span className="hidden md:inline">Export</span>
           </button>
 
-          {/* Download & Install Standalone App option */}
-          <button
-            onClick={onOpenInstall}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md text-xs font-extrabold text-white bg-[#E85D00] hover:bg-orange-600 dark:bg-[#E85D00] dark:hover:bg-orange-600 shadow-md transition-all transform active:scale-95 duration-100 cursor-pointer ml-1 animate-pulse hover:animate-none"
-            title="Install Native App"
-            id="pwa-download-navbar-btn"
-          >
-            <Laptop size={13} strokeWidth={2.5} />
-            <span>Download App</span>
-          </button>
+          {/* Download Standalone App OR Update App option */}
+          {isStandalone ? (
+            <button
+              onClick={handleCheckUpdatesNavbar}
+              disabled={checkingUpdates}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md text-xs font-extrabold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 shadow-md transition-all transform active:scale-95 duration-100 cursor-pointer ml-1 disabled:opacity-50"
+              title="Check for application updates and patches"
+              id="pwa-update-navbar-btn"
+            >
+              <RefreshCw size={13} className={checkingUpdates ? 'animate-spin' : ''} />
+              <span>{checkingUpdates ? 'Updating...' : 'Update App'}</span>
+            </button>
+          ) : (
+            <button
+              onClick={onOpenInstall}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md text-xs font-extrabold text-white bg-[#E85D00] hover:bg-orange-600 dark:bg-[#E85D00] dark:hover:bg-orange-600 shadow-md transition-all transform active:scale-95 duration-100 cursor-pointer ml-1 animate-pulse hover:animate-none"
+              title="Install Native App"
+              id="pwa-download-navbar-btn"
+            >
+              <Laptop size={13} strokeWidth={2.5} />
+              <span>Download App</span>
+            </button>
+          )}
         </div>
       </div>
 

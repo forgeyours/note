@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, HardDrive, Eye, Cloud, Check, Sparkles, BookOpen } from 'lucide-react';
+import { X, HardDrive, Eye, Cloud, Check, Sparkles, BookOpen, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { getStorageUsage } from '../../lib/db';
+import { performPwaUpdateCheck } from '../../lib/updateChecker';
 import toast from 'react-hot-toast';
 
 interface SettingsModalProps {
@@ -18,11 +19,34 @@ export default function SettingsModal({ onClear }: SettingsModalProps) {
 
   const [storageStats, setStorageStats] = useState({ bytes: 0, human: 'Estimating...' });
   const [userGeminiKey, setUserGeminiKey] = useState(localStorage.getItem('user_gemini_key') || '');
+  const [palmRejection, setPalmRejection] = useState(localStorage.getItem('palm_rejection_level') || 'smart');
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
 
   useEffect(() => {
     getStorageUsage().then(setStorageStats);
   }, []);
+
+  const handleCheckUpdates = async () => {
+    if (checkingUpdates) return;
+    setCheckingUpdates(true);
+    const toastId = toast.loading('Checking for updates...');
+    try {
+      const result = await performPwaUpdateCheck();
+      if (result.updated) {
+        toast.success('Update complete! Reloading application...', { id: toastId });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        toast.success(result.message, { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Could not complete update check. Try again!', { id: toastId });
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
 
   const handleSaveAIKey = () => {
     localStorage.setItem('user_gemini_key', userGeminiKey);
@@ -81,6 +105,44 @@ export default function SettingsModal({ onClear }: SettingsModalProps) {
         </div>
       </div>
 
+      {/* Palm Rejection Option */}
+      <div className="flex flex-col space-y-2 p-2.5 bg-bg-secondary rounded-xl border border-transparent dark:border-[#2E303B] ivory:border-[#E8E1CE]">
+        <div className="flex flex-col">
+          <span className="text-xs font-bold text-text-primary">Palm Rejection & Drawing input</span>
+          <span className="text-[10px] text-text-muted">Adjust touchscreen and active stylus behavior for tablets</span>
+        </div>
+        <div className="flex bg-gray-200 dark:bg-[#12131A] p-1 rounded-lg">
+          {([
+            { id: 'smart', label: 'Smart Palm' },
+            { id: 'stylus', label: 'Pen Only' },
+            { id: 'none', label: 'None (Fingertip)' }
+          ] as const).map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => {
+                localStorage.setItem('palm_rejection_level', mode.id);
+                setPalmRejection(mode.id);
+                toast.success(`Palm Rejection: configured to "${mode.label}"`);
+              }}
+              className={`flex-1 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${
+                palmRejection === mode.id
+                  ? 'bg-white dark:bg-[#2A2D35] ivory:bg-[#FCFBF7] text-brand-primary shadow-sm font-bold'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-text-muted leading-relaxed mt-0.5 px-0.5">
+          {palmRejection === 'stylus' 
+            ? '🔒 Stylus Pen Only: Ink strokes are restricted to stylus tips. Touch inputs are ignored to guarantee zero palm errors.' 
+            : palmRejection === 'none' 
+              ? '💡 None (Fingertip): Open touchscreen drawing. Works with generic capacitive pens and fingertips.' 
+              : '⚡ Smart Palm: Combines touch size thresholding (>24px) & native hover suppression to block resting palms.'}
+        </p>
+      </div>
+
       {/* Storage estimator stats */}
       <div className="flex flex-col space-y-1.5 p-3.5 bg-bg-secondary rounded-xl border border-gray-150 dark:border-[#2E303B] ivory:border-[#E8E1CE]">
         <span className="text-xs font-bold text-text-primary flex items-center space-x-1.5">
@@ -120,6 +182,29 @@ export default function SettingsModal({ onClear }: SettingsModalProps) {
             Apply
           </button>
         </div>
+      </div>
+
+      {/* Dynamic PWA updates */}
+      <div className="flex flex-col space-y-2.5 p-3.5 bg-bg-secondary rounded-xl border border-gray-150 dark:border-[#2E303B] ivory:border-[#E8E1CE]">
+        <span className="text-xs font-bold text-text-primary flex items-center space-x-1.5">
+          <RefreshCw size={13} className={`text-brand-primary ${checkingUpdates ? 'animate-spin' : ''}`} />
+          <span>Application Version & Updates</span>
+        </span>
+        <div className="flex justify-between items-center text-xs mt-1">
+          <span className="text-text-secondary">PWA Deployment Version:</span>
+          <span className="font-mono font-bold text-brand-primary">v2.1.0</span>
+        </div>
+        <p className="text-[10px] text-text-muted leading-normal">
+          Running high performance local-first with offline Service Worker. Tap below to query the server for fresh system updates.
+        </p>
+        <button
+          onClick={handleCheckUpdates}
+          disabled={checkingUpdates}
+          className="w-full py-2 bg-brand-primary hover:bg-brand-hover text-white text-xs font-bold rounded-lg shadow-sm transition-all duration-150 flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+        >
+          <RefreshCw size={13} className={checkingUpdates ? 'animate-spin' : ''} />
+          <span>{checkingUpdates ? 'Checking for updates...' : 'Check & Update App'}</span>
+        </button>
       </div>
 
       {/* Wipe tool deletes DB */}

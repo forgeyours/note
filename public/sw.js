@@ -1,9 +1,10 @@
-const CACHE_NAME = 'forgeyours-notes-v1';
+const CACHE_NAME = 'forgeyours-notes-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg'
+  '/icon.svg',
+  '/icon.svg?v=2'
 ];
 
 // Install Event: cache core bootstrap files
