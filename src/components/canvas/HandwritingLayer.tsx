@@ -86,6 +86,7 @@ const HandwritingLayer = memo(function HandwritingLayer({
   // Sophisticated palm rejection states
   const lastStylusActiveTimeRef = useRef<number>(0);
   const activePointerTypeRef = useRef<string | null>(null);
+  const hasStylusDetectedRef = useRef<boolean>(false);
 
   const abortActiveStroke = () => {
     isDrawingRef.current = false;
@@ -239,13 +240,17 @@ const HandwritingLayer = memo(function HandwritingLayer({
         e.preventDefault();
         return;
       }
-      // Reject large contact contact patches representing hand/palm rest
-      if (e.width > 24 || e.height > 24) {
+      
+      const activeTimeSuppress = hasStylusDetectedRef.current ? 8000 : 1500;
+      const sizeLimit = hasStylusDetectedRef.current ? 12 : 24;
+
+      // Reject contact patches representing hand/palm rest
+      if (e.width > sizeLimit || e.height > sizeLimit) {
         e.preventDefault();
         return;
       }
       // If stylus has been hover-active or touching recently, reject touch drawing completely
-      if (Date.now() - lastStylusActiveTimeRef.current < 1500) {
+      if (Date.now() - lastStylusActiveTimeRef.current < activeTimeSuppress) {
         e.preventDefault();
         return;
       }
@@ -254,6 +259,7 @@ const HandwritingLayer = memo(function HandwritingLayer({
     // Track last stylus timestamp
     if (e.pointerType === 'pen') {
       lastStylusActiveTimeRef.current = Date.now();
+      hasStylusDetectedRef.current = true;
     }
 
     if (isDrawingRef.current) {
@@ -333,6 +339,7 @@ const HandwritingLayer = memo(function HandwritingLayer({
     // Dynamic stylus-hover detection (Hover-based Touch Suppression)
     if (e.pointerType === 'pen') {
       lastStylusActiveTimeRef.current = Date.now();
+      hasStylusDetectedRef.current = true;
     }
 
     const palmRejection = localStorage.getItem('palm_rejection_level') || 'smart';
@@ -361,7 +368,9 @@ const HandwritingLayer = memo(function HandwritingLayer({
 
     // Smart continuous palm-expansion check
     if (activePointerTypeRef.current === 'touch' && palmRejection === 'smart') {
-      if (e.width > 24 || e.height > 24 || Date.now() - lastStylusActiveTimeRef.current < 1500) {
+      const activeTimeSuppress = hasStylusDetectedRef.current ? 8000 : 1500;
+      const sizeLimit = hasStylusDetectedRef.current ? 12 : 24;
+      if (e.width > sizeLimit || e.height > sizeLimit || Date.now() - lastStylusActiveTimeRef.current < activeTimeSuppress) {
         abortActiveStroke();
         return;
       }
@@ -521,9 +530,9 @@ const HandwritingLayer = memo(function HandwritingLayer({
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    // Treat cancel as up for the active pointer
+    // Treat cancel as abort to immediately clear and discard any rogue cancelled palm scribbles
     if (activeDevicePointerId.current === e.pointerId) {
-      handlePointerUp(e);
+      abortActiveStroke();
     }
   };
 
