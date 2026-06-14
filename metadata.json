@@ -1,0 +1,6 @@
+{
+  "name": "FY Note",
+  "description": "A free, local-first digital notebook PWA for students. It supports handwriting on canvas, rich text, PDF annotation, and flashcards, organized in Folders, Notebooks, and Pages.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
