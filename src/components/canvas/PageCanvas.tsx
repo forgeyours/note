@@ -203,7 +203,7 @@ const StaticPageSheet = memo(function StaticPageSheet({ page, pdfSource, zoom, d
                   height: rectHeight,
                 }}
               >
-                <svg className="w-full h-full">
+                <svg className="w-full h-full overflow-visible">
                   {shape.type === 'rectangle' && (
                     <rect
                       x={0}
@@ -246,17 +246,27 @@ const StaticPageSheet = memo(function StaticPageSheet({ page, pdfSource, zoom, d
                   )}
                   {shape.type === 'arrow' && (
                     <>
+                      <defs>
+                        <marker
+                          id={`arrow-static-${shape.id}`}
+                          markerWidth="10"
+                          markerHeight="7"
+                          refX="9"
+                          refY="3.5"
+                          orient="auto"
+                          markerUnits="strokeWidth"
+                        >
+                          <polygon points="0 0, 10 3.5, 0 7" fill={shape.borderColor} />
+                        </marker>
+                      </defs>
                       <line
                         x1="0"
                         y1="0"
-                        x2="90%"
-                        y2="90%"
+                        x2="100%"
+                        y2="100%"
                         stroke={shape.borderColor}
                         strokeWidth={shape.borderWidth * zoom}
-                      />
-                      <polygon
-                        points={`100%,100% 90%,60% 60%,90%`}
-                        fill={shape.borderColor}
+                        markerEnd={`url(#arrow-static-${shape.id})`}
                       />
                     </>
                   )}
@@ -664,7 +674,7 @@ export default function PageCanvas() {
                     )}
 
                     {/* SVG Canvas drawing representation */}
-                    <svg className="w-full h-full pointer-events-none select-none">
+                    <svg className="w-full h-full pointer-events-none select-none overflow-visible">
                       {shape.type === 'rectangle' && (
                         <rect
                           x={0}
@@ -707,17 +717,27 @@ export default function PageCanvas() {
                       )}
                       {shape.type === 'arrow' && (
                         <>
+                          <defs>
+                            <marker
+                              id={`arrow-active-${shape.id}`}
+                              markerWidth="10"
+                              markerHeight="7"
+                              refX="9"
+                              refY="3.5"
+                              orient="auto"
+                              markerUnits="strokeWidth"
+                            >
+                              <polygon points="0 0, 10 3.5, 0 7" fill={shape.borderColor} />
+                            </marker>
+                          </defs>
                           <line
                             x1="0"
                             y1="0"
-                            x2="90%"
-                            y2="90%"
+                            x2="100%"
+                            y2="100%"
                             stroke={shape.borderColor}
                             strokeWidth={shape.borderWidth * store.zoom}
-                          />
-                          <polygon
-                            points={`100%,100% 90%,60% 60%,90%`}
-                            fill={shape.borderColor}
+                            markerEnd={`url(#arrow-active-${shape.id})`}
                           />
                         </>
                       )}
@@ -740,7 +760,7 @@ export default function PageCanvas() {
                     backgroundColor: 'rgba(232, 93, 0, 0.05)'
                   }}
                 >
-                  <svg className="w-full h-full pointer-events-none select-none opacity-70">
+                  <svg className="w-full h-full pointer-events-none select-none opacity-70 overflow-visible">
                     {tempShape.type === 'rectangle' && (
                       <rect
                         x={0}
@@ -783,17 +803,27 @@ export default function PageCanvas() {
                     )}
                     {tempShape.type === 'arrow' && (
                       <>
+                        <defs>
+                          <marker
+                            id="arrow-preview-marker"
+                            markerWidth="10"
+                            markerHeight="7"
+                            refX="9"
+                            refY="3.5"
+                            orient="auto"
+                            markerUnits="strokeWidth"
+                          >
+                            <polygon points="0 0, 10 3.5, 0 7" fill={tempShape.borderColor} />
+                          </marker>
+                        </defs>
                         <line
                           x1="0"
                           y1="0"
-                          x2="90%"
-                          y2="90%"
+                          x2="100%"
+                          y2="100%"
                           stroke={tempShape.borderColor}
                           strokeWidth={tempShape.borderWidth * store.zoom}
-                        />
-                        <polygon
-                          points={`100%,100% 90%,60% 60%,90%`}
-                          fill={tempShape.borderColor}
+                          markerEnd="url(#arrow-preview-marker)"
                         />
                       </>
                     )}
@@ -862,7 +892,7 @@ export default function PageCanvas() {
 
   return (
     <div 
-      className="flex-1 h-full overflow-hidden flex flex-col items-center select-none relative animate-fade-in bg-bg-tertiary dark:bg-[#12131A]"
+      className="flex-1 h-full overflow-hidden flex flex-col items-center relative animate-fade-in bg-bg-tertiary dark:bg-[#12131A]"
       id="main-fy-notebook-stage"
     >
       {/* Scrollable canvas workspace paper wrapping bounds */}
@@ -879,7 +909,7 @@ export default function PageCanvas() {
           store.activeTool === 'pan' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
         }`}
         style={{
-          touchAction: store.activeTool === 'pan' ? 'auto' : 'none'
+          touchAction: (store.activeTool === 'pen' || store.activeTool === 'highlighter' || store.activeTool === 'eraser') ? 'none' : 'auto'
         }}
       >
         {notebookPages.length > 0 ? (

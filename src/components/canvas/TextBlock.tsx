@@ -24,23 +24,68 @@ export default function TextBlock({
   isSelectToolActive
 }: TextBlockProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [content, setContent] = useState(block.content);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const lastTapRef = useRef<number>(0);
 
   const blockRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus-out handlers for inline styles editor
+  const [tempContent, setTempContent] = useState('');
+
+  // Auto-focus, clear placeholders, and load cleaned text
+  useEffect(() => {
+    if (isEditing) {
+      const isPlaceholder = 
+        !block.content || 
+        block.content === 'Double tap to edit rich text...' || 
+        block.content === 'Double tap to write...';
+      
+      if (isPlaceholder) {
+        setTempContent('');
+      } else {
+        // Convert HTML breaks to plain text line breaks and strip any leftover styling tags
+        let text = block.content.replace(/<br\s*\/?>/gi, '\n');
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = text;
+        setTempContent(tempDiv.textContent || tempDiv.innerText || '');
+      }
+
+      // Defer focus slightly for mounting
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.focus();
+        }
+      }, 50);
+    }
+  }, [isEditing, block.content]);
+
+  // Auto-resize the textarea height as user types
+  useEffect(() => {
+    if (isEditing && editorRef.current) {
+      editorRef.current.style.height = 'auto';
+      editorRef.current.style.height = `${editorRef.current.scrollHeight}px`;
+    }
+  }, [tempContent, isEditing]);
+
   const handleSave = () => {
-    onUpdate(block.id, { content });
+    const cleaned = tempContent.trim();
+    if (!cleaned) {
+      onDelete(block.id);
+    } else {
+      // Escape HTML and convert lines to break elements for safe visual formatting
+      const escaped = cleaned
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\r?\n/g, '<br />');
+      onUpdate(block.id, { content: escaped });
+    }
     setIsEditing(false);
   };
 
   const handleCancel = () => {
-    setContent(block.content);
     setIsEditing(false);
   };
 
@@ -118,10 +163,16 @@ export default function TextBlock({
   return (
     <div
       ref={blockRef}
-      className={`absolute select-none group border text-xs leading-normal ${
+      onPointerDown={(e) => {
+        if (isEditing) e.stopPropagation();
+      }}
+      onMouseDown={(e) => {
+        if (isEditing) e.stopPropagation();
+      }}
+      className={`absolute group border text-xs leading-normal ${
         isEditing 
-          ? 'border-brand-primary bg-white shadow-lg p-3 z-30 rounded-xl' 
-          : 'border-transparent hover:border-dashed hover:border-brand-primary/50 hover:bg-brand-light/20 p-2.5 z-20 rounded-xl'
+          ? 'select-text border-brand-primary bg-white shadow-lg p-3 z-40 rounded-xl' 
+          : 'select-none border-transparent hover:border-dashed hover:border-brand-primary/50 hover:bg-brand-light/20 p-2.5 z-20 rounded-xl'
       }`}
       style={{
         left: block.x * zoom,
@@ -129,7 +180,8 @@ export default function TextBlock({
         width: block.width * zoom,
         transformOrigin: 'top left',
         backgroundColor: isEditing ? '#FFFFFF' : 'transparent',
-        boxShadow: isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : 'none'
+        boxShadow: isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : 'none',
+        touchAction: 'auto'
       }}
     >
       {/* Context Action Hover Box (Only shown when not editing) */}
@@ -231,19 +283,21 @@ export default function TextBlock({
 
       {/* Text block Content section */}
       {isEditing ? (
-        <div
+        <textarea
           ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          className={`outline-none min-h-[40px] text-text-primary overflow-wrap-break-word font-sans pr-1 select-text ${isEditing ? 'cursor-text' : ''}`}
+          value={tempContent}
+          onChange={(e) => setTempContent(e.target.value)}
+          className="outline-none min-h-[50px] w-full text-text-primary overflow-wrap-break-word font-sans pr-1 select-text cursor-text bg-transparent border-none p-0 focus:ring-0 active:ring-0 touch-auto resize-none block"
           style={{ 
             fontSize: `${block.fontSize * zoom}px`,
             fontFamily: block.fontFamily,
-            color: block.color
+            color: block.color,
+            lineHeight: '1.5'
           }}
-          onInput={(e) => setContent(e.currentTarget.innerHTML)}
-          dangerouslySetInnerHTML={{ __html: block.content }}
+          placeholder="Start typing..."
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         />
       ) : (
         <div 
