@@ -4,7 +4,7 @@
   "description": "Premium, secure, local-first sketchpad, flashcards, and notebooks with serverless offline capability.",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/icon.svg?v=2",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

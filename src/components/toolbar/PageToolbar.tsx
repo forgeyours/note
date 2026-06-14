@@ -115,7 +115,7 @@ export default function PageToolbar({
               id="brand-logo-link"
             >
               <img 
-                src="/icon.svg" 
+                src="/icon.svg?v=2" 
                 alt="ForgeYours Notes Logo" 
                 className="w-6 h-6 rounded shadow-sm object-contain"
                 referrerPolicy="no-referrer"
