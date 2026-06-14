@@ -114,10 +114,13 @@ export default function PageToolbar({
               title="Visit ForgeYours"
               id="brand-logo-link"
             >
-              <div className="flex items-center justify-center w-6 h-6 rounded bg-orange-500 text-white shadow-sm">
-                <PenTool size={13} strokeWidth={3} />
-              </div>
-              <span className="font-bold text-gray-800 dark:text-gray-100 hidden sm:inline-block mr-2 tracking-tight">ForgeYours Notes</span>
+              <img 
+                src="/icon.svg" 
+                alt="ForgeYours Notes Logo" 
+                className="w-6 h-6 rounded shadow-sm object-contain"
+                referrerPolicy="no-referrer"
+              />
+              <span className="font-bold text-gray-800 dark:text-gray-100 hidden sm:inline-block mr-2 tracking-tight font-sans">ForgeYours Notes</span>
             </a>
             <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-700 hidden sm:block mx-1"></div>
             

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- High-contrast rounded square orange background (Brand Orange #E85D00) -->
+  <rect width="512" height="512" rx="128" fill="#E85D00" />
+  
+  <!-- Minimalist white fountain pen nib, rotated to point dynamically -->
+  <g transform="translate(256, 256) rotate(-45) translate(-256, -256)">
+    <!-- Base contour and shoulders -->
+    <path d="M 256 100 
+             C 215 170, 175 220, 160 280 
+             C 150 320, 150 340, 185 340
+             L 200 340
+             L 200 380
+             L 312 380
+             L 312 340
+             L 327 340
+             C 362 340, 362 320, 352 280
+             C 337 220, 297 170, 256 100 Z" 
+          fill="#FFFFFF" />
+          
+    <!-- Breather hole cutout in brand orange -->
+    <circle cx="256" cy="245" r="16" fill="#E85D00" />
+    
+    <!-- Feed slit cutout in brand orange -->
+    <rect x="250" y="100" width="12" height="135" rx="6" fill="#E85D00" />
+  </g>
+</svg>
