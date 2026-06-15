@@ -138,6 +138,40 @@ export default function PageToolbar({
     }
   }, []);
 
+  // Global document listener to handle closing all desktop dropdown popovers on outside click/touch
+  useEffect(() => {
+    const handleClickOutside = (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      
+      // Close Pen Popup if clicked outside its container and trigger button
+      if (showPenPopup && !target.closest('#pen-popup-container') && !target.closest('#pen-preset-btn')) {
+        setShowPenPopup(false);
+      }
+      // Close Highlighter Popup if clicked outside
+      if (showHighlightPopup && !target.closest('#highlight-popup-container') && !target.closest('#highlight-preset-btn')) {
+        setShowHighlightPopup(false);
+      }
+      // Close Eraser Popup if clicked outside
+      if (showEraserPopup && !target.closest('#eraser-popup-container') && !target.closest('#eraser-preset-btn')) {
+        setShowEraserPopup(false);
+      }
+      // Close Background Select Layout Picker if clicked outside
+      if (showBackgroundSelect && !target.closest('#layout-popup-container') && !target.closest('#layout-preset-btn')) {
+        setShowBackgroundSelect(false);
+      }
+      // Close Google Drive Sync Popover if clicked outside
+      if (showDrivePopup && !target.closest('#drive-popup-container') && !target.closest('#drive-preset-btn')) {
+        setShowDrivePopup(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+    };
+  }, [showPenPopup, showHighlightPopup, showEraserPopup, showBackgroundSelect, showDrivePopup]);
+
   // Breadcrumbs
   const hasPage = store.activePageId !== null;
 
@@ -266,7 +300,7 @@ export default function PageToolbar({
 
       {/* Bottom row: Tool controllers */}
       <div 
-        className="flex items-center justify-between px-4 py-1.5 overflow-x-auto whitespace-nowrap scrollbar-none flex-nowrap bg-white dark:bg-[#1A1D23] border-t border-gray-100 dark:border-[#2E303B] gap-4"
+        className="flex items-center justify-between px-4 py-1.5 overflow-x-auto sm:overflow-visible whitespace-nowrap scrollbar-none flex-nowrap bg-white dark:bg-[#1A1D23] border-t border-gray-100 dark:border-[#2E303B] gap-4 relative"
         style={{ minHeight: '44px' }}
       >
         {/* Draw Tools selector buttons */}
@@ -401,6 +435,7 @@ export default function PageToolbar({
           {hasPage && store.activeTool === 'pen' && (
             <div className={`relative flex items-center ${showPenPopup ? 'z-50' : ''}`}>
               <button
+                id="pen-preset-btn"
                 title="Pen Settings"
                 onClick={() => setShowPenPopup(!showPenPopup)}
                 className="relative z-30 flex items-center space-x-1.5 px-2 py-1 rounded-md bg-transparent hover:bg-gray-100 dark:hover:bg-[#2A2D35] text-gray-700 dark:text-gray-300 transition-all duration-150 select-none"
@@ -410,20 +445,10 @@ export default function PageToolbar({
                 <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showPenPopup ? 'rotate-180' : ''}`} />
               </button>
               {showPenPopup && (
-                <>
+                <div className="hidden sm:block">
                   <div 
-                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setShowPenPopup(false);
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPenPopup(false);
-                    }}
-                  />
-                  <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
+                    id="pen-popup-container"
+                    className="absolute top-full right-0 mt-2 z-[70]"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -456,7 +481,7 @@ export default function PageToolbar({
                       }}
                     />
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -465,6 +490,7 @@ export default function PageToolbar({
           {hasPage && store.activeTool === 'highlighter' && (
             <div className={`relative flex items-center ${showHighlightPopup ? 'z-50' : ''}`}>
               <button
+                id="highlight-preset-btn"
                 title="Highlighter Settings"
                 onClick={() => setShowHighlightPopup(!showHighlightPopup)}
                 className="relative z-30 flex items-center space-x-1.5 px-2 py-1 rounded-md bg-transparent hover:bg-gray-100 dark:hover:bg-[#2A2D35] text-gray-700 dark:text-gray-300 transition-all duration-150 select-none"
@@ -474,20 +500,10 @@ export default function PageToolbar({
                 <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showHighlightPopup ? 'rotate-180' : ''}`} />
               </button>
               {showHighlightPopup && (
-                <>
+                <div className="hidden sm:block">
                   <div 
-                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setShowHighlightPopup(false);
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowHighlightPopup(false);
-                    }}
-                  />
-                  <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
+                    id="highlight-popup-container"
+                    className="absolute top-full right-0 mt-2 z-[70]"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -518,7 +534,7 @@ export default function PageToolbar({
                       }}
                     />
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -527,6 +543,7 @@ export default function PageToolbar({
           {hasPage && store.activeTool === 'eraser' && (
             <div className={`relative flex items-center ${showEraserPopup ? 'z-50' : ''}`}>
               <button
+                id="eraser-preset-btn"
                 title="Eraser Settings"
                 onClick={() => setShowEraserPopup(!showEraserPopup)}
                 className="relative z-30 flex items-center space-x-1.5 px-2 py-1 rounded-md bg-transparent hover:bg-gray-100 dark:hover:bg-[#2A2D35] text-gray-700 dark:text-gray-300 transition-all duration-150 select-none"
@@ -537,20 +554,10 @@ export default function PageToolbar({
                 <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showEraserPopup ? 'rotate-180' : ''}`} />
               </button>
               {showEraserPopup && (
-                <>
+                <div className="hidden sm:block">
                   <div 
-                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setShowEraserPopup(false);
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowEraserPopup(false);
-                    }}
-                  />
-                  <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
+                    id="eraser-popup-container"
+                    className="absolute top-full right-0 mt-2 z-[70]"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -562,7 +569,7 @@ export default function PageToolbar({
                       darkMode={store.darkMode}
                     />
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -595,6 +602,7 @@ export default function PageToolbar({
           {hasPage && (
             <div className={`relative flex items-center border-l border-gray-200 dark:border-gray-800 pl-2 ml-1 ${showBackgroundSelect ? 'z-50' : ''}`}>
               <button
+                id="layout-preset-btn"
                 onClick={() => { setShowBackgroundSelect(!showBackgroundSelect); setShowPenPopup(false); setShowHighlightPopup(false); setShowEraserPopup(false); }}
                 className="relative z-30 flex items-center space-x-1.5 px-2 py-1 rounded-md bg-transparent hover:bg-gray-100 dark:hover:bg-[#2A2D35] text-gray-700 dark:text-gray-300 transition-all duration-150 select-none"
                 title="Paper Template Layout"
@@ -604,20 +612,10 @@ export default function PageToolbar({
                 <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showBackgroundSelect ? 'rotate-180' : ''}`} />
               </button>
               {showBackgroundSelect && (
-                <>
+                <div className="hidden sm:block">
                   <div 
-                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setShowBackgroundSelect(false);
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowBackgroundSelect(false);
-                    }}
-                  />
-                  <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2 bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl p-3 w-[180px] flex flex-col space-y-1.5"
+                    id="layout-popup-container"
+                    className="absolute top-full right-0 mt-2 bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl p-3 w-[180px] flex flex-col space-y-1.5 z-[70]"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -647,7 +645,7 @@ export default function PageToolbar({
                       </button>
                     ))}
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -666,6 +664,7 @@ export default function PageToolbar({
               
               <div className={`relative ${showDrivePopup ? 'z-50' : ''}`}>
                 <button
+                  id="drive-preset-btn"
                   onClick={() => {
                     setShowDrivePopup(!showDrivePopup);
                     setShowPenPopup(false);
@@ -691,13 +690,9 @@ export default function PageToolbar({
                 </button>
 
                 {showDrivePopup && (
-                  <>
+                  <div className="hidden sm:block">
                     <div 
-                      className="fixed inset-0 z-[60] bg-transparent cursor-auto"
-                      onPointerDown={() => setShowDrivePopup(false)}
-                      onClick={() => setShowDrivePopup(false)}
-                    />
-                    <div 
+                      id="drive-popup-container"
                       className="absolute right-0 mt-2 p-4 w-[290px] text-xs bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl z-[70] text-text-primary dark:text-gray-200 pointer-events-auto cursor-default animate-fade-in"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
@@ -816,7 +811,7 @@ export default function PageToolbar({
                         </p>
                         
                         <div className="space-y-2">
-                          <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1.5 rounded-xl">
+                          <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-250 px-2 py-1.5 rounded-xl">
                             <Link size={12} className="text-gray-400 shrink-0" />
                             <input
                               type="url"
@@ -857,7 +852,7 @@ export default function PageToolbar({
                                     setDriveInputLink('');
                                     toast.success('Manual Sync Link disconnected! Returning to local device storage.');
                                   }}
-                                  className="p-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200/50"
+                                  className="p-1.5 bg-red-50 hover:bg-red-105 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200/50"
                                   title="Unlink/Disconnect"
                                 >
                                   <LogOut size={12} />
@@ -887,7 +882,7 @@ export default function PageToolbar({
                         </div>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -949,6 +944,390 @@ export default function PageToolbar({
           )}
         </div>
       </div>
+
+      {/* MOBILE-ONLY POPUPS RENDERING ZONE (renders at root of toolbar layout to prevent scroll context clipping) */}
+      {hasPage && (
+        <div className="block sm:hidden">
+          {/* Mobile Pen Picker Option */}
+          {store.activeTool === 'pen' && showPenPopup && (
+            <>
+              <div 
+                className="fixed inset-0 z-[100] cursor-pointer bg-black/40 backdrop-blur-[1px]"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setShowPenPopup(false);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPenPopup(false);
+                }}
+              />
+              <div 
+                className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110]"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <PenPicker
+                  color={store.penColor}
+                  width={store.penWidth}
+                  brushType={store.brushType}
+                  onColorChange={(c) => store.setPenColor(c)}
+                  onWidthChange={(w) => store.setPenWidth(w)}
+                  onBrushTypeChange={(t) => store.setBrushType(t)}
+                  onAddToFavorites={() => {
+                    if (!store.activeNotebookId) {
+                      toast.error('Connect or select a notebook first!');
+                      return;
+                    }
+                    const res = store.addFavorite(
+                      store.activeNotebookId,
+                      'pen',
+                      store.penColor,
+                      store.penWidth,
+                      store.brushType
+                    );
+                    if (res === 'duplicate') {
+                      toast.error('already added');
+                    } else if (res === 'full') {
+                      toast.error('Maximum 7 favorites reached in this notebook!');
+                    } else {
+                      toast.success('Pen added to favorites!');
+                    }
+                  }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Mobile Highlighter Picker Option */}
+          {store.activeTool === 'highlighter' && showHighlightPopup && (
+            <>
+              <div 
+                className="fixed inset-0 z-[100] cursor-pointer bg-black/40 backdrop-blur-[1px]"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setShowHighlightPopup(false);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowHighlightPopup(false);
+                }}
+              />
+              <div 
+                className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110]"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <HighlighterPicker
+                  color={store.highlightColor}
+                  width={store.highlightWidth}
+                  onColorChange={(c) => store.setHighlightColor(c)}
+                  onWidthChange={(w) => store.setHighlightWidth(w)}
+                  darkMode={store.darkMode}
+                  onAddToFavorites={() => {
+                    if (!store.activeNotebookId) {
+                      toast.error('Connect or select a notebook first!');
+                      return;
+                    }
+                    const res = store.addFavorite(
+                      store.activeNotebookId,
+                      'highlighter',
+                      store.highlightColor,
+                      store.highlightWidth
+                    );
+                    if (res === 'duplicate') {
+                      toast.error('already added');
+                    } else if (res === 'full') {
+                      toast.error('Maximum 7 favorites reached in this notebook!');
+                    } else {
+                      toast.success('Highlighter added to favorites!');
+                    }
+                  }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Mobile Eraser Picker Option */}
+          {store.activeTool === 'eraser' && showEraserPopup && (
+            <>
+              <div 
+                className="fixed inset-0 z-[100] cursor-pointer bg-black/40 backdrop-blur-[1px]"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setShowEraserPopup(false);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowEraserPopup(false);
+                }}
+              />
+              <div 
+                className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110]"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <EraserPicker
+                  width={store.eraserWidth}
+                  onWidthChange={(w) => store.setEraserWidth(w)}
+                  mode={store.eraserMode}
+                  onModeChange={(m) => store.setEraserMode(m)}
+                  darkMode={store.darkMode}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Mobile Layout Template Selection Option */}
+          {showBackgroundSelect && (
+            <>
+              <div 
+                className="fixed inset-0 z-[100] cursor-pointer bg-black/40 backdrop-blur-[1px]"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setShowBackgroundSelect(false);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowBackgroundSelect(false);
+                }}
+              />
+              <div 
+                className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110] bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl p-3 w-[180px] flex flex-col space-y-1.5"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-[10px] font-bold text-text-muted dark:text-gray-400 uppercase tracking-wider mb-1 px-1">Templates</div>
+                {(['plain', 'ruled', 'grid', 'dotted'] as const).map((bg) => (
+                  <button
+                    key={bg}
+                    onClick={() => {
+                      store.updatePageBackground(bg);
+                      setShowBackgroundSelect(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-2 rounded-xl text-xs transition-colors flex items-center justify-between hover:bg-bg-secondary dark:hover:bg-[#12131A]/60 ${
+                      store.activePage?.background === bg 
+                        ? 'text-brand-primary dark:text-[#38bdf8] font-bold bg-brand-light dark:bg-[#38bdf8]/10' 
+                        : 'text-text-secondary dark:text-gray-300'
+                    }`}
+                  >
+                    <span>
+                      {bg === 'plain' && '⬜ Plain Paper'}
+                      {bg === 'ruled' && '📄 Ruled Paper'}
+                      {bg === 'grid' && '🗺️ Math Grid'}
+                      {bg === 'dotted' && '🎯 Bullet Dotted'}
+                    </span>
+                    {store.activePage?.background === bg && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-primary dark:bg-[#38bdf8] animate-pulse" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Mobile Google Drive Sync Option */}
+          {showDrivePopup && (
+            <>
+              <div 
+                className="fixed inset-0 z-[100] cursor-pointer bg-black/45 backdrop-blur-[1px]"
+                onPointerDown={() => setShowDrivePopup(false)}
+                onClick={() => setShowDrivePopup(false)}
+              />
+              <div 
+                className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[110] p-4 w-[calc(100vw-32px)] max-w-[340px] max-h-[80vh] overflow-y-auto bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-2xl pointer-events-auto cursor-default animate-fade-in"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2 mb-3">
+                  <div className="flex items-center space-x-1.5">
+                    <BrainCircuit size={15} className="text-blue-500" />
+                    <span className="font-bold text-gray-800 dark:text-gray-100 font-sans">Google Drive Sync</span>
+                  </div>
+                  {savedManualDriveLink ? (
+                    <span className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 rounded-md">
+                      Linked
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 text-[9px] font-bold text-gray-400 bg-gray-50 dark:bg-[#12131A] rounded-md">
+                      Offline
+                    </span>
+                  )}
+                </div>
+
+                {/* Option 1: Self-Managed Custom OAuth Configuration */}
+                <div className="mb-4">
+                  <div className="text-[10px] font-bold text-text-muted dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                    Option 1: Supply Your Own OAuth API
+                  </div>
+                  <p className="text-[11px] text-text-muted dark:text-gray-400 mb-2.5 leading-tight font-sans">
+                    Configure a safe client-side implicit flow with your own Google Developer credentials.
+                  </p>
+                  
+                  <div className="space-y-2 mb-2">
+                    <div>
+                      <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 block mb-1">Google Client ID</span>
+                      <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1 rounded-lg">
+                        <input
+                          type="text"
+                          placeholder="xxxxxx.apps.googleusercontent.com"
+                          value={customClientId}
+                          onChange={(e) => {
+                            const val = e.target.value.trim();
+                            setCustomClientId(val);
+                            localStorage.setItem('fy_custom_oauth_client_id', val);
+                          }}
+                          className="bg-transparent border-none text-[11px] w-full focus:ring-0 p-0 text-text-primary dark:text-gray-200 outline-none placeholder-gray-400 font-sans"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 block mb-1">Direct Access Token (Optional)</span>
+                      <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1 rounded-lg">
+                        <input
+                          type="password"
+                          placeholder="Paste active Bearer Token..."
+                          value={customAccessToken}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomAccessToken(val);
+                            localStorage.setItem('fy_custom_oauth_access_token', val);
+                          }}
+                          className="bg-transparent border-none text-[11px] w-full focus:ring-0 p-0 text-text-primary dark:text-gray-200 outline-none placeholder-gray-400 font-sans"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <button
+                      onClick={() => {
+                        const cid = customClientId.trim();
+                        if (!cid) {
+                          toast.error('Please input your Google API Client ID to initialize.');
+                          return;
+                        }
+                        const redirectUri = window.location.origin + window.location.pathname;
+                        const scope = 'https://www.googleapis.com/auth/drive.file';
+                        const finalAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}`;
+                        
+                        toast.loading('Redirecting to your personal credential consent page...', { duration: 2500 });
+                        setTimeout(() => {
+                          window.location.href = finalAuthUrl;
+                        }, 1200);
+                      }}
+                      className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-center text-xs transition-colors flex items-center justify-center space-x-1"
+                    >
+                      <Cloud size={12} />
+                      <span>Authorize Direct</span>
+                    </button>
+                    
+                    {(customClientId || customAccessToken) && (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem('fy_custom_oauth_client_id');
+                          localStorage.removeItem('fy_custom_oauth_access_token');
+                          setCustomClientId('');
+                          setCustomAccessToken('');
+                          toast.success('Custom developer credentials cleared.');
+                        }}
+                        className="p-1 px-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg text-xs"
+                        title="Reset"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="w-full h-px bg-gray-100 dark:bg-gray-800 my-3" />
+
+                {/* Option 2: Manual Link Config */}
+                <div>
+                  <div className="text-[10px] font-bold text-text-muted dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                    Option 2: Manual Folder Link
+                  </div>
+                  <p className="text-[11px] text-text-muted dark:text-gray-400 mb-2 leading-tight font-sans">
+                    Paste your shared Google Drive folder link to establish a manual file sink.
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1.5 bg-gray-50 dark:bg-[#12131A] dark:border-gray-800 border border-gray-200 px-2 py-1.5 rounded-xl">
+                      <Link size={12} className="text-gray-400 shrink-0" />
+                      <input
+                        type="url"
+                        placeholder="https://drive.google.com/..."
+                        value={driveInputLink}
+                        onChange={(e) => setDriveInputLink(e.target.value)}
+                        className="bg-transparent border-none text-xs w-full focus:ring-0 p-0 text-text-primary dark:text-gray-200 outline-none placeholder-gray-400 font-sans"
+                      />
+                    </div>
+
+                    <div className="flex gap-1.5 pt-1">
+                      {savedManualDriveLink ? (
+                        <>
+                          <button
+                            onClick={async () => {
+                              if (isDriveSyncing) return;
+                              setIsDriveSyncing(true);
+                              const tid = toast.loading('Exporting notebook blocks and saving database backup to Drive shared folder...');
+                              await new Promise(r => setTimeout(r, 1500));
+                              setIsDriveSyncing(false);
+                              toast.success('Synchronization payload written! Saved copy successfully uploaded.', { id: tid });
+                            }}
+                            disabled={isDriveSyncing}
+                            className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-center transition-all flex items-center justify-center space-x-1 font-sans"
+                          >
+                            {isDriveSyncing ? (
+                              <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Check size={12} />
+                            )}
+                            <span>Sync Now</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              localStorage.removeItem('fy_manual_drive_link');
+                              setSavedManualDriveLink('');
+                              setDriveInputLink('');
+                              toast.success('Manual Sync Link disconnected! Returning to local device storage.');
+                            }}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200/50"
+                            title="Unlink/Disconnect"
+                          >
+                            <LogOut size={12} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (!driveInputLink.trim()) {
+                              toast.error('Please input a valid Google Drive folder link before linking.');
+                              return;
+                            }
+                            if (!driveInputLink.includes('drive.google.com')) {
+                              toast.error('Please enter a valid Google Drive URL (drive.google.com).');
+                              return;
+                            }
+                            localStorage.setItem('fy_manual_drive_link', driveInputLink);
+                            setSavedManualDriveLink(driveInputLink);
+                            toast.success('Successfully linked manual Google Drive directory backup database sink!');
+                          }}
+                          className="w-full py-1.5 px-2.5 bg-gray-950 hover:bg-black dark:bg-[#12131A] dark:hover:bg-black text-white font-semibold rounded-xl text-center transition-all font-sans cursor-pointer h-8"
+                        >
+                          Link Manual Folder
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
