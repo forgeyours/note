@@ -109,6 +109,7 @@ interface AppStore {
   notebookFavorites: Record<string, FavoriteCombination[]>;
   addFavorite: (notebookId: string, type: 'pen' | 'highlighter', color: string, width: number, brushType?: 'normal' | 'calligraphy' | 'dashed' | 'dotted') => 'success' | 'duplicate' | 'full';
   removeFavorite: (notebookId: string, id: string) => void;
+  reorderFavorites: (notebookId: string, startIndex: number, endIndex: number) => void;
 }
 
 const initialHistory = {
@@ -549,6 +550,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const updated = {
       ...current,
       [notebookId]: existing.filter((item) => item.id !== id)
+    };
+    
+    localStorage.setItem('fy_notebook_favorites', JSON.stringify(updated));
+    set({ notebookFavorites: updated });
+  },
+  reorderFavorites: (notebookId, startIndex, endIndex) => {
+    const current = get().notebookFavorites;
+    const existing = current[notebookId] || [];
+    if (startIndex < 0 || startIndex >= existing.length || endIndex < 0 || endIndex >= existing.length) return;
+    
+    const result = Array.from(existing);
+    const [removed] = result.splice(startIndex, 1);
+    result.splice(endIndex, 0, removed);
+    
+    const updated = {
+      ...current,
+      [notebookId]: result
     };
     
     localStorage.setItem('fy_notebook_favorites', JSON.stringify(updated));

@@ -64,19 +64,21 @@ export default function FavoritePensToolbar() {
       y: startY - (elem.top + elem.height / 2),
     });
 
-    // Start long-press timer (500ms)
+    // Start snappy long-press timer (400ms)
     longPressTimerRef.current = setTimeout(() => {
       setIsLongPressed(true);
       setDraggedItem(item);
       if (navigator.vibrate) {
-        navigator.vibrate(30); // Gentle feedback
+        try {
+          navigator.vibrate(30); // Gentle feedback
+        } catch (_) {}
       }
-      toast('Long-hold active! Drag down to trash region to delete.', {
+      toast('Long-hold active! Drag up/down to reorder, or to trash region at the bottom to delete.', {
         icon: '🔔',
         id: 'drag-notice',
-        duration: 1800,
+        duration: 2000,
       });
-    }, 500);
+    }, 400);
 
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -92,12 +94,12 @@ export default function FavoritePensToolbar() {
     // If we haven't reached long-press state yet, measure distance
     if (!isLongPressed) {
       const distance = Math.hypot(currentX - startPosRef.current.x, currentY - startPosRef.current.y);
-      if (distance > 10) {
-        // Cancel the timer because the user moved too far before holding
+      // Increased wiggle tolerance to 24px so fingers can rest stable without cancelling
+      if (distance > 24) {
         cancelLongPress();
       }
     } else {
-      // We are dragging, evaluate collision with bottom middle trash area
+      // We are dragging, evaluate collision with bottom middle trash area first
       let over = false;
       if (trashRef.current) {
         const rect = trashRef.current.getBoundingClientRect();
@@ -118,13 +120,36 @@ export default function FavoritePensToolbar() {
         );
       }
       setIsOverTrash(over);
+
+      // Real-time reordering when not hovered over the trash can!
+      if (!over) {
+        const elemBelow = document.elementFromPoint(currentX, currentY);
+        if (elemBelow) {
+          const favButton = elemBelow.closest('[data-fav-index]');
+          if (favButton) {
+            const targetIndex = parseInt(favButton.getAttribute('data-fav-index') || '-1', 10);
+            if (targetIndex !== -1 && targetIndex !== pressedIndex) {
+              store.reorderFavorites(notebookId, pressedIndex, targetIndex);
+              setPressedIndex(targetIndex);
+              
+              if (navigator.vibrate) {
+                try {
+                  navigator.vibrate(12); // Subtle haptic notification of swapping
+                } catch (_) {}
+              }
+            }
+          }
+        }
+      }
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>, item: FavoriteCombination) => {
     e.stopPropagation(); // Stop propagation to prevent drawing on the canvas underneath!
     cancelLongPress();
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
 
     const isDraggingActive = isLongPressed;
     const clickIdx = pressedIndex;
@@ -166,7 +191,9 @@ export default function FavoritePensToolbar() {
   const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.stopPropagation(); // Stop propagation to prevent drawing on the canvas underneath!
     cancelLongPress();
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
     setPressedIndex(null);
     setDraggedItem(null);
     setIsLongPressed(false);
@@ -208,10 +235,17 @@ export default function FavoritePensToolbar() {
               return (
                 <button
                   key={item.id}
+                  data-fav-index={index}
                   onPointerDown={(e) => handlePointerDown(e, item, index)}
                   onPointerMove={handlePointerMove}
                   onPointerUp={(e) => handlePointerUp(e, item)}
                   onPointerCancel={handlePointerCancel}
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none',
+                    touchAction: 'none'
+                  }}
                   className={`w-[48px] h-[48px] touch-none flex flex-col items-center justify-center rounded-xl transition-all cursor-grab active:cursor-grabbing relative border ${
                     isLongPressed && isActive
                       ? 'opacity-35 scale-90 border-dashed border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20'
@@ -219,7 +253,7 @@ export default function FavoritePensToolbar() {
                         ? 'bg-[#F0F2FF] dark:bg-[#1C1F33] border-indigo-500/50 shadow-md ring-2 ring-indigo-500/20 scale-[1.05]'
                         : 'bg-white dark:bg-[#12131A] dark:border-gray-850 hover:bg-gray-50 border-gray-200 hover:border-gray-300'
                   }`}
-                  title={`${isPen ? 'Pen' : 'Highlighter'} (${item.width}px) - Long-hold & drag to custom trash at bottom middle to remove`}
+                  title={`${isPen ? 'Pen' : 'Highlighter'} (${item.width}px) - Long-hold & drag to reorder or to custom trash at bottom middle to remove`}
                 >
                   {/* Miniature tip container */}
                   <div className="relative flex items-center justify-center w-6 h-6 rounded-full" style={{ backgroundColor: item.color + '15' }}>
@@ -256,7 +290,11 @@ export default function FavoritePensToolbar() {
       {/* Dragging Visual Clone Follower */}
       {isLongPressed && draggedItem && (
         <div
-          className="fixed pointer-events-none z-[9999] flex items-center space-x-2 px-3 py-2 bg-[#FAF9F6] dark:bg-[#12131A] border-2 border-red-500 rounded-2xl shadow-2xl animate-pulse cursor-grabbing"
+          className={`fixed pointer-events-none z-[9999] flex items-center space-x-2 px-3 py-2 bg-[#FAF9F6] dark:bg-[#1E2028] border-2 rounded-2xl shadow-2xl scale-110 cursor-grabbing transition-colors duration-150 ${
+            isOverTrash 
+              ? 'border-red-500 bg-red-50 dark:bg-red-950/20' 
+              : 'border-[#4f46e5]'
+          }`}
           style={{
             left: `${mousePos.x}px`,
             top: `${mousePos.y}px`,
@@ -288,14 +326,14 @@ export default function FavoritePensToolbar() {
           <div
             className={`p-2.5 rounded-full transition-all duration-200 ${
               isOverTrash 
-                ? 'bg-red-500 text-white animate-bounce shadow-xl' 
+                ? 'bg-red-50 text-white animate-bounce shadow-xl' 
                 : 'bg-red-50 dark:bg-red-950/20 text-red-500'
             }`}
           >
             <Trash2 size={24} className={isOverTrash ? 'scale-110 animate-pulse' : 'scale-100'} />
           </div>
           <div className="text-[11px] font-bold font-sans tracking-wide">
-            {isOverTrash ? 'RELEASE TO REMOVE FAVORITE!' : 'Drag folder item here inside middle trash area'}
+            {isOverTrash ? 'RELEASE TO REMOVE FAVORITE!' : 'Drag item here to delete'}
           </div>
         </div>
       )}
