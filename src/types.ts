@@ -129,3 +129,12 @@ export interface ShapeBlock {
   isFlipX?: boolean;
   isFlipY?: boolean;
 }
+
+export interface FavoriteCombination {
+  id: string;
+  type: 'pen' | 'highlighter';
+  color: string;
+  width: number;
+  brushType?: 'normal' | 'calligraphy' | 'dashed' | 'dotted';
+}
+

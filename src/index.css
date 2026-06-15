@@ -73,6 +73,25 @@ html, body, #root {
   background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
 }
 
+/* Hide scrollbar utility for pristine mobile touch slider experiences */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+/* Optimize tapping feedback & disable standard browser zoom-delays on touch interfaces */
+button, a, select, input[type="button"] {
+  touch-action: manipulation;
+}
+
+/* Guarantee that drawing canvas contexts strictly reject browser touch scrolling */
+canvas {
+  touch-action: none;
+}
+
 /* Custom fade transitions */
 .fade-in {
   animation: fadeIn 0.15s ease-out forwards;

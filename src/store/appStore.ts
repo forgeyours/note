@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { Stroke, TextBlock, ImageBlock, AudioMarker, ShapeBlock, Page, Notebook } from '../types';
+import { Stroke, TextBlock, ImageBlock, AudioMarker, ShapeBlock, Page, Notebook, FavoriteCombination } from '../types';
 import { getPage, savePage, getNotebook } from '../lib/db';
 
 interface HistoryItem {
@@ -104,6 +104,11 @@ interface AppStore {
   pushHistory: () => void;
   undo: () => void;
   redo: () => void;
+
+  // Favorites
+  notebookFavorites: Record<string, FavoriteCombination[]>;
+  addFavorite: (notebookId: string, type: 'pen' | 'highlighter', color: string, width: number, brushType?: 'normal' | 'calligraphy' | 'dashed' | 'dotted') => 'success' | 'duplicate' | 'full';
+  removeFavorite: (notebookId: string, id: string) => void;
 }
 
 const initialHistory = {
@@ -112,6 +117,15 @@ const initialHistory = {
   imageBlocks: [],
   audioMarkers: [],
   shapeBlocks: []
+};
+
+const loadFavorites = (): Record<string, FavoriteCombination[]> => {
+  try {
+    const data = localStorage.getItem('fy_notebook_favorites');
+    return data ? JSON.parse(data) : {};
+  } catch (e) {
+    return {};
+  }
 };
 
 export const globalCanvasState = { isDrawing: false };
@@ -489,5 +503,55 @@ export const useAppStore = create<AppStore>((set, get) => ({
       currentShapeBlocks: state.currentShapeBlocks.filter((s) => s.id !== id)
     }));
     if (get().activePageId) performDebouncedSave(get().activePageId, get());
+  },
+
+  notebookFavorites: loadFavorites(),
+  addFavorite: (notebookId, type, color, width, brushType) => {
+    const current = get().notebookFavorites;
+    const existing = current[notebookId] || [];
+    
+    // Check duplication
+    const isDuplicate = existing.some((item) =>
+      item.type === type &&
+      item.color.toLowerCase() === color.toLowerCase() &&
+      item.width === width &&
+      (type === 'pen' ? item.brushType === brushType : true)
+    );
+    
+    if (isDuplicate) {
+      return 'duplicate';
+    }
+    
+    if (existing.length >= 7) {
+      return 'full';
+    }
+    
+    const newFav: FavoriteCombination = {
+      id: `${type}-${color.replace('#', '')}-${width}-${brushType || 'normal'}-${Date.now()}`,
+      type,
+      color,
+      width,
+      brushType
+    };
+    
+    const updated = {
+      ...current,
+      [notebookId]: [...existing, newFav]
+    };
+    
+    localStorage.setItem('fy_notebook_favorites', JSON.stringify(updated));
+    set({ notebookFavorites: updated });
+    return 'success';
+  },
+  removeFavorite: (notebookId, id) => {
+    const current = get().notebookFavorites;
+    const existing = current[notebookId] || [];
+    const updated = {
+      ...current,
+      [notebookId]: existing.filter((item) => item.id !== id)
+    };
+    
+    localStorage.setItem('fy_notebook_favorites', JSON.stringify(updated));
+    set({ notebookFavorites: updated });
   }
 }));

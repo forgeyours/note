@@ -266,11 +266,11 @@ export default function PageToolbar({
 
       {/* Bottom row: Tool controllers */}
       <div 
-        className="flex items-center justify-between px-4 py-1.5 flex-wrap gap-4 bg-white dark:bg-[#1A1D23] border-t border-gray-100 dark:border-[#2E303B]"
+        className="flex items-center justify-between px-4 py-1.5 overflow-x-auto whitespace-nowrap scrollbar-none flex-nowrap bg-white dark:bg-[#1A1D23] border-t border-gray-100 dark:border-[#2E303B] gap-4"
         style={{ minHeight: '44px' }}
       >
         {/* Draw Tools selector buttons */}
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 shrink-0">
           {/* Pen */}
           <button
             onClick={() => { store.setTool('pen'); setShowPenPopup(false); setShowHighlightPopup(false); setShowEraserPopup(false); }}
@@ -396,10 +396,10 @@ export default function PageToolbar({
         </div>
 
         {/* Dynamic Tool config options */}
-        <div className="flex items-center space-x-1.5 relative flex-wrap text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center space-x-1.5 relative flex-nowrap shrink-0 text-sm text-gray-700 dark:text-gray-300">
           {/* Floating popup anchor for Pen customizable details */}
           {hasPage && store.activeTool === 'pen' && (
-            <div className="relative flex items-center">
+            <div className={`relative flex items-center ${showPenPopup ? 'z-50' : ''}`}>
               <button
                 title="Pen Settings"
                 onClick={() => setShowPenPopup(!showPenPopup)}
@@ -412,7 +412,7 @@ export default function PageToolbar({
               {showPenPopup && (
                 <>
                   <div 
-                    className="fixed inset-0 z-20 cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
+                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       setShowPenPopup(false);
@@ -423,7 +423,7 @@ export default function PageToolbar({
                     }}
                   />
                   <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
+                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -434,6 +434,26 @@ export default function PageToolbar({
                       onColorChange={(c) => store.setPenColor(c)}
                       onWidthChange={(w) => store.setPenWidth(w)}
                       onBrushTypeChange={(t) => store.setBrushType(t)}
+                      onAddToFavorites={() => {
+                        if (!store.activeNotebookId) {
+                          toast.error('Connect or select a notebook first!');
+                          return;
+                        }
+                        const res = store.addFavorite(
+                          store.activeNotebookId,
+                          'pen',
+                          store.penColor,
+                          store.penWidth,
+                          store.brushType
+                        );
+                        if (res === 'duplicate') {
+                          toast.error('already added');
+                        } else if (res === 'full') {
+                          toast.error('Maximum 7 favorites reached in this notebook!');
+                        } else {
+                          toast.success('Pen added to favorites!');
+                        }
+                      }}
                     />
                   </div>
                 </>
@@ -443,7 +463,7 @@ export default function PageToolbar({
 
           {/* Floating popup for Highlighter customizable details */}
           {hasPage && store.activeTool === 'highlighter' && (
-            <div className="relative flex items-center">
+            <div className={`relative flex items-center ${showHighlightPopup ? 'z-50' : ''}`}>
               <button
                 title="Highlighter Settings"
                 onClick={() => setShowHighlightPopup(!showHighlightPopup)}
@@ -456,7 +476,7 @@ export default function PageToolbar({
               {showHighlightPopup && (
                 <>
                   <div 
-                    className="fixed inset-0 z-20 cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
+                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       setShowHighlightPopup(false);
@@ -467,7 +487,7 @@ export default function PageToolbar({
                     }}
                   />
                   <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
+                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -477,6 +497,25 @@ export default function PageToolbar({
                       onColorChange={(c) => store.setHighlightColor(c)}
                       onWidthChange={(w) => store.setHighlightWidth(w)}
                       darkMode={store.darkMode}
+                      onAddToFavorites={() => {
+                        if (!store.activeNotebookId) {
+                          toast.error('Connect or select a notebook first!');
+                          return;
+                        }
+                        const res = store.addFavorite(
+                          store.activeNotebookId,
+                          'highlighter',
+                          store.highlightColor,
+                          store.highlightWidth
+                        );
+                        if (res === 'duplicate') {
+                          toast.error('already added');
+                        } else if (res === 'full') {
+                          toast.error('Maximum 7 favorites reached in this notebook!');
+                        } else {
+                          toast.success('Highlighter added to favorites!');
+                        }
+                      }}
                     />
                   </div>
                 </>
@@ -486,7 +525,7 @@ export default function PageToolbar({
 
           {/* Floating popup for Eraser width */}
           {hasPage && store.activeTool === 'eraser' && (
-            <div className="relative flex items-center">
+            <div className={`relative flex items-center ${showEraserPopup ? 'z-50' : ''}`}>
               <button
                 title="Eraser Settings"
                 onClick={() => setShowEraserPopup(!showEraserPopup)}
@@ -500,7 +539,7 @@ export default function PageToolbar({
               {showEraserPopup && (
                 <>
                   <div 
-                    className="fixed inset-0 z-20 cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
+                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       setShowEraserPopup(false);
@@ -511,7 +550,7 @@ export default function PageToolbar({
                     }}
                   />
                   <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
+                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -554,7 +593,7 @@ export default function PageToolbar({
 
           {/* Background template selectors */}
           {hasPage && (
-            <div className="relative flex items-center border-l border-gray-200 dark:border-gray-800 pl-2 ml-1">
+            <div className={`relative flex items-center border-l border-gray-200 dark:border-gray-800 pl-2 ml-1 ${showBackgroundSelect ? 'z-50' : ''}`}>
               <button
                 onClick={() => { setShowBackgroundSelect(!showBackgroundSelect); setShowPenPopup(false); setShowHighlightPopup(false); setShowEraserPopup(false); }}
                 className="relative z-30 flex items-center space-x-1.5 px-2 py-1 rounded-md bg-transparent hover:bg-gray-100 dark:hover:bg-[#2A2D35] text-gray-700 dark:text-gray-300 transition-all duration-150 select-none"
@@ -567,7 +606,7 @@ export default function PageToolbar({
               {showBackgroundSelect && (
                 <>
                   <div 
-                    className="fixed inset-0 z-20 cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
+                    className="fixed inset-0 z-[60] cursor-pointer bg-black/40 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none"
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       setShowBackgroundSelect(false);
@@ -578,7 +617,7 @@ export default function PageToolbar({
                     }}
                   />
                   <div 
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2 bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl p-3 w-[180px] flex flex-col space-y-1.5"
+                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] sm:absolute sm:top-full sm:bottom-auto sm:left-auto sm:right-0 sm:translate-x-0 sm:mt-2 bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl p-3 w-[180px] flex flex-col space-y-1.5"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -625,7 +664,7 @@ export default function PageToolbar({
                 <span className="md:inline hidden">Cards</span>
               </button>
               
-              <div className="relative">
+              <div className={`relative ${showDrivePopup ? 'z-50' : ''}`}>
                 <button
                   onClick={() => {
                     setShowDrivePopup(!showDrivePopup);
@@ -654,12 +693,12 @@ export default function PageToolbar({
                 {showDrivePopup && (
                   <>
                     <div 
-                      className="fixed inset-0 z-40 bg-transparent cursor-auto"
+                      className="fixed inset-0 z-[60] bg-transparent cursor-auto"
                       onPointerDown={() => setShowDrivePopup(false)}
                       onClick={() => setShowDrivePopup(false)}
                     />
                     <div 
-                      className="absolute right-0 mt-2 p-4 w-[290px] text-xs bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl z-50 text-text-primary dark:text-gray-200 pointer-events-auto cursor-default animate-fade-in"
+                      className="absolute right-0 mt-2 p-4 w-[290px] text-xs bg-white dark:bg-[#1E2028] border border-gray-150 dark:border-gray-800 rounded-2xl shadow-xl z-[70] text-text-primary dark:text-gray-200 pointer-events-auto cursor-default animate-fade-in"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
                     >

@@ -1,61 +1,111 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 export default function GlobalTooltip() {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const hoveredElementRef = useRef<HTMLElement | null>(null);
+  const dismissedRef = useRef<boolean>(false);
+  const lastTouchTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    let timeout: number;
+    if (!tooltip) return;
+
+    const autoDismissTimer = setTimeout(() => {
+      setTooltip(null);
+      dismissedRef.current = true;
+    }, 1500);
+
+    return () => clearTimeout(autoDismissTimer);
+  }, [tooltip]);
+
+  useEffect(() => {
+    // Basic media query lookup for hovering capability
+    const hasHoverSupport = window.matchMedia('(hover: hover)').matches;
+
+    const handleTouchStart = () => {
+      lastTouchTimeRef.current = Date.now();
+      // Dismiss any current tooltip on touch input
+      setTooltip(null);
+      dismissedRef.current = true;
+    };
 
     const handleMouseOver = (e: MouseEvent) => {
+      // 1. Fully bypass tooltips on devices that do not support hover states (e.g. phones/tablets)
+      if (!hasHoverSupport) return;
+
+      // 2. Prevent touch-triggered mouseover events (typically fire immediately after a touch tap)
+      if (Date.now() - lastTouchTimeRef.current < 2000) {
+        return;
+      }
+
       const target = e.target as HTMLElement;
-      const elementWithTitle = target.closest('[title]') as HTMLElement;
-      
-      if (elementWithTitle) {
-        const title = elementWithTitle.getAttribute('title');
+      let element = target.closest('[title]') as HTMLElement;
+      let titleText = '';
+
+      if (element) {
+        const title = element.getAttribute('title');
         if (title) {
-          elementWithTitle.setAttribute('data-tooltip', title);
-          elementWithTitle.removeAttribute('title');
-          
-          const rect = elementWithTitle.getBoundingClientRect();
-          setTooltip({
-            text: title,
-            x: rect.left + rect.width / 2,
-            y: rect.bottom + 8,
-          });
+          element.setAttribute('data-tooltip', title);
+          element.removeAttribute('title');
+          titleText = title;
         }
       } else {
-        const elementWithDataTooltip = target.closest('[data-tooltip]') as HTMLElement;
-        if (elementWithDataTooltip) {
-           const rect = elementWithDataTooltip.getBoundingClientRect();
-           setTooltip({
-             text: elementWithDataTooltip.getAttribute('data-tooltip')!,
-             x: rect.left + rect.width / 2,
-             y: rect.bottom + 8,
-           });
+        element = target.closest('[data-tooltip]') as HTMLElement;
+        if (element) {
+          titleText = element.getAttribute('data-tooltip') || '';
         }
       }
+
+      if (!element) {
+        if (hoveredElementRef.current) {
+          hoveredElementRef.current = null;
+          dismissedRef.current = false;
+          setTooltip(null);
+        }
+        return;
+      }
+
+      if (hoveredElementRef.current === element) {
+        if (dismissedRef.current) {
+          return;
+        }
+        return;
+      }
+
+      hoveredElementRef.current = element;
+      dismissedRef.current = false;
+
+      const rect = element.getBoundingClientRect();
+      setTooltip({
+        text: titleText,
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 8,
+      });
     };
 
     const handleMouseOut = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
       const related = e.relatedTarget as HTMLElement;
       
-      // If we're just moving between children of the tooltip container, ignore
-      const elementWithDataTooltip = target.closest('[data-tooltip]') as HTMLElement;
-      if (elementWithDataTooltip && related && elementWithDataTooltip.contains(related)) {
-         return;
+      if (hoveredElementRef.current) {
+        if (!related || !hoveredElementRef.current.contains(related)) {
+          setTooltip(null);
+          hoveredElementRef.current = null;
+          dismissedRef.current = false;
+        }
       }
-      
-      setTooltip(null);
     };
 
-    const handleMouseDown = () => setTooltip(null);
+    const handleMouseDown = () => {
+      setTooltip(null);
+      dismissedRef.current = true;
+    };
 
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
     document.addEventListener('mouseover', handleMouseOver);
     document.addEventListener('mouseout', handleMouseOut);
     document.addEventListener('mousedown', handleMouseDown);
     
     return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('mouseover', handleMouseOver);
       document.removeEventListener('mouseout', handleMouseOut);
       document.removeEventListener('mousedown', handleMouseDown);

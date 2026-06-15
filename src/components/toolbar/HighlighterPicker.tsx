@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { Star } from 'lucide-react';
 
 interface HighlighterPickerProps {
   color: string;
@@ -11,6 +12,7 @@ interface HighlighterPickerProps {
   onColorChange: (color: string) => void;
   onWidthChange: (width: number) => void;
   darkMode?: boolean;
+  onAddToFavorites?: () => void;
 }
 
 export default function HighlighterPicker({
@@ -19,6 +21,7 @@ export default function HighlighterPicker({
   onColorChange,
   onWidthChange,
   darkMode = false,
+  onAddToFavorites,
 }: HighlighterPickerProps) {
   const presets = [
     '#FFEB3B', // Fluorescent Yellow
@@ -105,6 +108,17 @@ export default function HighlighterPicker({
           />
         </div>
       </div>
+
+      {onAddToFavorites && (
+        <button
+          type="button"
+          onClick={onAddToFavorites}
+          className="w-full mt-1.5 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl text-center text-[11px] transition-colors cursor-pointer flex items-center justify-center space-x-1.5 border border-indigo-100 dark:border-indigo-900/30"
+        >
+          <Star size={12} className="fill-indigo-600/10 dark:fill-indigo-400/15" />
+          <span>Add to Favorites</span>
+        </button>
+      )}
     </div>
   );
 }

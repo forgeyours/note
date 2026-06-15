@@ -8,6 +8,7 @@ import { useAppStore } from './store/appStore';
 import Sidebar from './components/sidebar/Sidebar';
 import PageToolbar from './components/toolbar/PageToolbar';
 import PageCanvas from './components/canvas/PageCanvas';
+import FavoritePensToolbar from './components/toolbar/FavoritePensToolbar';
 import SettingsModal from './components/modals/SettingsModal';
 import FlashcardModal from './components/modals/FlashcardModal';
 import ExportModal from './components/modals/ExportModal';
@@ -135,6 +136,9 @@ export default function App() {
 
         {/* Drawing Notebook canvas stage */}
         <PageCanvas />
+        
+        {/* Notebook-specific floating favorite brushes tool list */}
+        <FavoritePensToolbar />
       </div>
 
       {/* GLOBAL MODALS (SETTINGS, AUDIO, FLASHCARDS, BACKUPS, IMAGES) */}
